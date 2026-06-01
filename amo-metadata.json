@@ -1,0 +1,19 @@
+{
+  "summary": {
+    "en-US": "Make YouTube calmer with Shorts blocking, focus modes, filters, schedules, and distraction controls."
+  },
+  "categories": [
+    "appearance",
+    "photos-music-videos",
+    "social-communication",
+    "privacy-security",
+    "other"
+  ],
+  "name": {
+    "en-US": "focuslane"
+  },
+  "tags": ["productivity","privacy", "youtube", "content blocker"],
+  "version": {
+    "license": "all-rights-reserved"
+  }
+}
