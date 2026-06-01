@@ -4,8 +4,9 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
+  release:
+    types:
+      - published
 
 jobs:
   firefox-extension:
@@ -22,7 +23,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -41,18 +41,27 @@ jobs:
           if-no-files-found: error
 
       - name: Verify release tag matches manifest version
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'release'
         run: |
-          tag_version="${GITHUB_REF_NAME#v}"
+          release_tag="${RELEASE_TAG}"
+
+          if [[ ! "$release_tag" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "Release tag ${release_tag} must start with v and match the manifest version, for example v2.0.1."
+            exit 1
+          fi
+
+          tag_version="${release_tag#v}"
           manifest_version="$(node -p "require('./manifest.json').version")"
 
           if [ "$tag_version" != "$manifest_version" ]; then
             echo "Release tag v${tag_version} does not match manifest.json version ${manifest_version}."
             exit 1
           fi
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
 
       - name: Verify AMO credentials are configured
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'release'
         run: |
           if [ -z "${WEB_EXT_API_KEY}" ] || [ -z "${WEB_EXT_API_SECRET}" ]; then
             echo "Missing AMO_JWT_ISSUER or AMO_JWT_SECRET GitHub repository secret."
@@ -63,7 +72,7 @@ jobs:
           WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
 
       - name: Submit listed extension to AMO
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'release'
         run: npm run publish:amo
         env:
           WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
