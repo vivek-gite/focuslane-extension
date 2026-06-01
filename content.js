@@ -720,15 +720,6 @@ function extractChannel(el) {
   return "";
 }
 
-function escapeHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
 function getLearningQueue() {
   return Array.isArray(runtimeState.learningSessionQueue) ? runtimeState.learningSessionQueue : [];
 }
@@ -1721,20 +1712,34 @@ function renderSponsorNotice(segment, mode = "skipped") {
   }
 
   notice.classList.remove("is-hiding");
-  notice.innerHTML = mode === "ask" ? `
-    <button type="button" data-sponsor-action="skip">Skip sponsor <span class="focuslane-sponsor-skip-icon" aria-hidden="true"></span></button>
-  ` : `
-    <strong>Skipped sponsor segment</strong>
-    <span>${Math.max(1, Math.round((Number(segment.end) || 0) - (Number(segment.start) || 0)))}s skipped automatically.</span>
-  `;
 
-  const button = notice.querySelector("[data-sponsor-action='skip']");
-  if (button) {
+  notice.replaceChildren();
+  if (mode === "ask") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.sponsorAction = "skip";
+    button.append(document.createTextNode("Skip sponsor "));
+
+    const icon = document.createElement("span");
+    icon.className = "focuslane-sponsor-skip-icon";
+    icon.setAttribute("aria-hidden", "true");
+    button.appendChild(icon);
+
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       skipSponsorSegment(segment);
     });
+    notice.appendChild(button);
+  } else {
+    const title = document.createElement("strong");
+    title.textContent = "Skipped sponsor segment";
+
+    const detail = document.createElement("span");
+    const seconds = Math.max(1, Math.round((Number(segment.end) || 0) - (Number(segment.start) || 0)));
+    detail.textContent = `${seconds}s skipped automatically.`;
+
+    notice.append(title, detail);
   }
 
   scheduleSponsorNoticeFade();
@@ -1779,14 +1784,21 @@ function renderSponsorMarkers() {
   });
   if (layer.dataset.signature === signature) return;
   layer.dataset.signature = signature;
-  layer.innerHTML = sponsorSegments.map((segment) => {
+  const markers = document.createDocumentFragment();
+  sponsorSegments.forEach((segment) => {
     const start = Math.max(0, Number(segment.start) || 0);
     const end = Math.min(duration, Math.max(start, Number(segment.end) || 0));
-    if (end <= start) return "";
+    if (end <= start) return;
     const left = Math.max(0, Math.min(100, (start / duration) * 100));
     const width = Math.max(0.18, Math.min(100 - left, ((end - start) / duration) * 100));
-    return `<span class="focuslane-sponsor-marker" style="left: ${left}%; width: ${width}%"></span>`;
-  }).join("");
+
+    const marker = document.createElement("span");
+    marker.className = "focuslane-sponsor-marker";
+    marker.style.left = `${left}%`;
+    marker.style.width = `${width}%`;
+    markers.appendChild(marker);
+  });
+  layer.replaceChildren(markers);
 }
 
 function removeLearningStackPanel() {
@@ -1798,6 +1810,16 @@ function removeLearningStackButtons() {
   document.querySelectorAll(".focuslane-stack-card-button").forEach((el) => el.remove());
   const watchBtn = document.getElementById("focuslane-watch-stack-button");
   if (watchBtn) watchBtn.remove();
+}
+
+function createLearningActionButton(action, label, options = {}) {
+  const button = document.createElement("button");
+  button.dataset.learningAction = action;
+  button.textContent = label;
+  if (options.className) button.className = options.className;
+  if (options.videoId) button.dataset.videoId = options.videoId;
+  if (options.disabled) button.disabled = true;
+  return button;
 }
 
 function renderLearningStackPanel() {
@@ -1832,59 +1854,131 @@ function renderLearningStackPanel() {
   panel.className = `focuslane-stack-panel${collapsed ? " collapsed" : ""}`;
   if (panel.dataset.signature === signature) return;
   panel.dataset.signature = signature;
-  panel.innerHTML = `
-    <div class="focuslane-stack-head">
-      <div class="focuslane-stack-title">
-        <strong>Learning Stack</strong>
-        <span>${queue.length} queued &middot; ${completedCount} done${active ? " &middot; session on" : ""}</span>
-      </div>
-      <button class="focuslane-stack-button" data-learning-action="toggle-panel">${open ? "Hide" : "Open"}</button>
-    </div>
-    ${open ? `
-      <div class="focuslane-stack-body">
-        <div class="focuslane-stack-actions">
-          ${canAddCurrent ? `<button class="focuslane-stack-button" data-learning-action="add-current">Add current video</button>` : ""}
-          ${queue.length && !active ? `<button class="focuslane-stack-button primary" data-learning-action="start-session">Start session</button>` : ""}
-          ${active && incomplete.length ? `<button class="focuslane-stack-button primary" data-learning-action="resume-queue">Resume queue</button>` : ""}
-          ${active && incomplete.length ? `<button class="focuslane-stack-button" data-learning-action="toggle-find-more">${runtimeState.learningSessionFindMore ? "Stop adding" : "Find more"}</button>` : ""}
-          ${complete ? `<button class="focuslane-stack-button primary" data-learning-action="end-session">End session</button>` : ""}
-        </div>
-        ${queue.length ? renderLearningQueueRows(queue, active) : `<p class="focuslane-stack-row-meta">Add a YouTube video to begin a focused learning queue.</p>`}
-      </div>
-    ` : ""}
-  `;
+
+  const header = document.createElement("div");
+  header.className = "focuslane-stack-head";
+
+  const title = document.createElement("div");
+  title.className = "focuslane-stack-title";
+
+  const titleText = document.createElement("strong");
+  titleText.textContent = "Learning Stack";
+
+  const meta = document.createElement("span");
+  meta.textContent = `${queue.length} queued \u00b7 ${completedCount} done${active ? " \u00b7 session on" : ""}`;
+
+  title.append(titleText, meta);
+  header.append(title, createLearningActionButton("toggle-panel", open ? "Hide" : "Open", {
+    className: "focuslane-stack-button"
+  }));
+
+  const children = [header];
+  if (open) {
+    const body = document.createElement("div");
+    body.className = "focuslane-stack-body";
+
+    const actions = document.createElement("div");
+    actions.className = "focuslane-stack-actions";
+
+    if (canAddCurrent) {
+      actions.appendChild(createLearningActionButton("add-current", "Add current video", {
+        className: "focuslane-stack-button"
+      }));
+    }
+    if (queue.length && !active) {
+      actions.appendChild(createLearningActionButton("start-session", "Start session", {
+        className: "focuslane-stack-button primary"
+      }));
+    }
+    if (active && incomplete.length) {
+      actions.appendChild(createLearningActionButton("resume-queue", "Resume queue", {
+        className: "focuslane-stack-button primary"
+      }));
+      actions.appendChild(createLearningActionButton(
+        "toggle-find-more",
+        runtimeState.learningSessionFindMore ? "Stop adding" : "Find more",
+        { className: "focuslane-stack-button" }
+      ));
+    }
+    if (complete) {
+      actions.appendChild(createLearningActionButton("end-session", "End session", {
+        className: "focuslane-stack-button primary"
+      }));
+    }
+
+    body.appendChild(actions);
+    if (queue.length) {
+      body.appendChild(renderLearningQueueRows(queue, active));
+    } else {
+      const empty = document.createElement("p");
+      empty.className = "focuslane-stack-row-meta";
+      empty.textContent = "Add a YouTube video to begin a focused learning queue.";
+      body.appendChild(empty);
+    }
+    children.push(body);
+  }
+
+  panel.replaceChildren(...children);
 
   wireLearningPanel(panel);
 }
 
 function renderLearningQueueRows(queue, active) {
-  return `
-    <div class="focuslane-stack-list">
-      ${queue.map((item, index) => {
-        const progress = Math.round(Math.min(1, item.progress || 0) * 100);
-        const isCurrent = item.id === runtimeState.learningSessionCurrentId;
-        const done = Boolean(item.completedAt);
-        const canRemove = !active || done;
-        return `
-          <div class="focuslane-stack-row" data-video-id="${escapeHtml(item.id)}">
-            <img class="focuslane-stack-thumb" src="${escapeHtml(item.thumbnail)}" alt="" />
-            <div class="focuslane-stack-row-body">
-              <div class="focuslane-stack-row-title">${escapeHtml(item.title)}</div>
-              <div class="focuslane-stack-row-meta">${done ? "Done" : `${progress}% watched`}${isCurrent ? " &middot; current" : ""}${item.channel ? ` &middot; ${escapeHtml(item.channel)}` : ""}</div>
-              <div class="focuslane-stack-progress"><span style="width: ${done ? 100 : progress}%"></span></div>
-              <div class="focuslane-stack-row-actions">
-                <button data-learning-action="play" data-video-id="${escapeHtml(item.id)}">Play</button>
-                <button data-learning-action="mark-done" data-video-id="${escapeHtml(item.id)}"${done ? " disabled" : ""}>Done</button>
-                <button data-learning-action="move-up" data-video-id="${escapeHtml(item.id)}"${index === 0 ? " disabled" : ""}>Up</button>
-                <button data-learning-action="move-down" data-video-id="${escapeHtml(item.id)}"${index === queue.length - 1 ? " disabled" : ""}>Down</button>
-                <button data-learning-action="remove" data-video-id="${escapeHtml(item.id)}"${canRemove ? "" : " disabled"}>Remove</button>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join("")}
-    </div>
-  `;
+  const list = document.createElement("div");
+  list.className = "focuslane-stack-list";
+
+  queue.forEach((item, index) => {
+    const progress = Math.round(Math.min(1, item.progress || 0) * 100);
+    const isCurrent = item.id === runtimeState.learningSessionCurrentId;
+    const done = Boolean(item.completedAt);
+    const canRemove = !active || done;
+
+    const row = document.createElement("div");
+    row.className = "focuslane-stack-row";
+    row.dataset.videoId = item.id || "";
+
+    const thumbnail = document.createElement("img");
+    thumbnail.className = "focuslane-stack-thumb";
+    thumbnail.src = item.thumbnail || "";
+    thumbnail.alt = "";
+
+    const body = document.createElement("div");
+    body.className = "focuslane-stack-row-body";
+
+    const title = document.createElement("div");
+    title.className = "focuslane-stack-row-title";
+    title.textContent = item.title || "";
+
+    const meta = document.createElement("div");
+    meta.className = "focuslane-stack-row-meta";
+    const metaParts = [done ? "Done" : `${progress}% watched`];
+    if (isCurrent) metaParts.push("current");
+    if (item.channel) metaParts.push(item.channel);
+    meta.textContent = metaParts.join(" \u00b7 ");
+
+    const progressBar = document.createElement("div");
+    progressBar.className = "focuslane-stack-progress";
+
+    const progressFill = document.createElement("span");
+    progressFill.style.width = `${done ? 100 : progress}%`;
+    progressBar.appendChild(progressFill);
+
+    const actions = document.createElement("div");
+    actions.className = "focuslane-stack-row-actions";
+    actions.append(
+      createLearningActionButton("play", "Play", { videoId: item.id }),
+      createLearningActionButton("mark-done", "Done", { videoId: item.id, disabled: done }),
+      createLearningActionButton("move-up", "Up", { videoId: item.id, disabled: index === 0 }),
+      createLearningActionButton("move-down", "Down", { videoId: item.id, disabled: index === queue.length - 1 }),
+      createLearningActionButton("remove", "Remove", { videoId: item.id, disabled: !canRemove })
+    );
+
+    body.append(title, meta, progressBar, actions);
+    row.append(thumbnail, body);
+    list.appendChild(row);
+  });
+
+  return list;
 }
 
 function wireLearningPanel(panel) {
@@ -2236,17 +2330,40 @@ function renderLearningGate() {
   if (overlay.dataset.signature === signature) return;
   overlay.dataset.signature = signature;
 
-  overlay.innerHTML = `
-    <div class="focuslane-panel">
-      <h2>Learning session active</h2>
-      <p>${canAddCurrent ? "This video is not in your stack. Add it to continue watching, or return to your queued videos." : "Finish the videos in your Learning Stack before open browsing."}</p>
-      <div class="focuslane-actions">
-        ${canAddCurrent ? `<button class="primary" data-learning-gate-action="add-current">Add this video</button>` : ""}
-        <button class="primary" data-learning-gate-action="resume">Resume queue</button>
-        <button data-learning-gate-action="find-more">${runtimeState.learningSessionFindMore ? "Back to adding" : "Find more videos"}</button>
-      </div>
-    </div>
-  `;
+  const panel = document.createElement("div");
+  panel.className = "focuslane-panel";
+
+  const title = document.createElement("h2");
+  title.textContent = "Learning session active";
+
+  const message = document.createElement("p");
+  message.textContent = canAddCurrent
+    ? "This video is not in your stack. Add it to continue watching, or return to your queued videos."
+    : "Finish the videos in your Learning Stack before open browsing.";
+
+  const actions = document.createElement("div");
+  actions.className = "focuslane-actions";
+
+  if (canAddCurrent) {
+    const addButton = document.createElement("button");
+    addButton.className = "primary";
+    addButton.dataset.learningGateAction = "add-current";
+    addButton.textContent = "Add this video";
+    actions.appendChild(addButton);
+  }
+
+  const resumeButton = document.createElement("button");
+  resumeButton.className = "primary";
+  resumeButton.dataset.learningGateAction = "resume";
+  resumeButton.textContent = "Resume queue";
+
+  const findMoreButton = document.createElement("button");
+  findMoreButton.dataset.learningGateAction = "find-more";
+  findMoreButton.textContent = runtimeState.learningSessionFindMore ? "Back to adding" : "Find more videos";
+
+  actions.append(resumeButton, findMoreButton);
+  panel.append(title, message, actions);
+  overlay.replaceChildren(panel);
 
   overlay.querySelectorAll("[data-learning-gate-action]").forEach((button) => {
     button.addEventListener("click", (event) => {
@@ -2529,19 +2646,46 @@ function renderIntentGate() {
     overlay = document.createElement("div");
     overlay.id = "focuslane-intent-gate";
     overlay.className = "focuslane-overlay";
-    overlay.innerHTML = `
-      <div class="focuslane-panel">
-        <h2>What are you here to watch?</h2>
-        <p>Strict mode keeps open-ended browsing out of the way. Search with intention or go to subscriptions.</p>
-        <input id="focuslane-intent-input" type="text" placeholder="Example: React router tutorial" />
-        <div class="focuslane-actions">
-          <button class="primary" id="focuslane-intent-search">Search</button>
-          <button id="focuslane-intent-subs">Subscriptions</button>
-          <button id="focuslane-intent-unlock">Unlock 5 min</button>
-        </div>
-        <input id="focuslane-unlock-phrase" type="text" placeholder="Type FOCUS to unlock" />
-      </div>
-    `;
+
+    const panel = document.createElement("div");
+    panel.className = "focuslane-panel";
+
+    const title = document.createElement("h2");
+    title.textContent = "What are you here to watch?";
+
+    const description = document.createElement("p");
+    description.textContent = "Strict mode keeps open-ended browsing out of the way. Search with intention or go to subscriptions.";
+
+    const intentInput = document.createElement("input");
+    intentInput.id = "focuslane-intent-input";
+    intentInput.type = "text";
+    intentInput.placeholder = "Example: React router tutorial";
+
+    const actions = document.createElement("div");
+    actions.className = "focuslane-actions";
+
+    const searchButton = document.createElement("button");
+    searchButton.id = "focuslane-intent-search";
+    searchButton.className = "primary";
+    searchButton.textContent = "Search";
+
+    const subsButton = document.createElement("button");
+    subsButton.id = "focuslane-intent-subs";
+    subsButton.textContent = "Subscriptions";
+
+    const unlockButton = document.createElement("button");
+    unlockButton.id = "focuslane-intent-unlock";
+    unlockButton.textContent = "Unlock 5 min";
+
+    actions.append(searchButton, subsButton, unlockButton);
+
+    const unlockInput = document.createElement("input");
+    unlockInput.id = "focuslane-unlock-phrase";
+    unlockInput.type = "text";
+    unlockInput.placeholder = "Type FOCUS to unlock";
+
+    panel.append(title, description, intentInput, actions, unlockInput);
+    overlay.appendChild(panel);
     document.documentElement.appendChild(overlay);
 
     overlay.querySelector("#focuslane-intent-search").addEventListener("click", () => {
@@ -2574,17 +2718,33 @@ function renderPageNotice(title, body) {
     notice = document.createElement("div");
     notice.id = "focuslane-page-notice";
     notice.className = "focuslane-overlay";
-    notice.innerHTML = `
-      <div class="focuslane-panel">
-        <h2></h2>
-        <p></p>
-        <input id="focuslane-notice-query" type="text" placeholder="Search YouTube" />
-        <div class="focuslane-actions">
-          <button class="primary" id="focuslane-notice-search">Search</button>
-          <button id="focuslane-notice-subs">Subscriptions</button>
-        </div>
-      </div>
-    `;
+
+    const panel = document.createElement("div");
+    panel.className = "focuslane-panel";
+
+    const titleEl = document.createElement("h2");
+    const bodyEl = document.createElement("p");
+
+    const queryInput = document.createElement("input");
+    queryInput.id = "focuslane-notice-query";
+    queryInput.type = "text";
+    queryInput.placeholder = "Search YouTube";
+
+    const actions = document.createElement("div");
+    actions.className = "focuslane-actions";
+
+    const searchButton = document.createElement("button");
+    searchButton.id = "focuslane-notice-search";
+    searchButton.className = "primary";
+    searchButton.textContent = "Search";
+
+    const subsButton = document.createElement("button");
+    subsButton.id = "focuslane-notice-subs";
+    subsButton.textContent = "Subscriptions";
+
+    actions.append(searchButton, subsButton);
+    panel.append(titleEl, bodyEl, queryInput, actions);
+    notice.appendChild(panel);
     document.documentElement.appendChild(notice);
     notice.querySelector("#focuslane-notice-search").addEventListener("click", () => {
       const query = notice.querySelector("#focuslane-notice-query").value.trim();
@@ -2659,20 +2819,49 @@ function renderEndGuard(effective) {
     overlay = document.createElement("div");
     overlay.id = "focuslane-end-guard";
     overlay.className = "focuslane-overlay";
-    overlay.innerHTML = `
-      <div class="focuslane-panel">
-        <h2>Video finished</h2>
-        <p id="focuslane-end-text">Choose the next intentional step.</p>
-        <input id="focuslane-end-query" type="text" placeholder="Search for the next video" />
-        <div class="focuslane-actions">
-          <button class="primary" id="focuslane-end-search">Search</button>
-          <button id="focuslane-end-replay">Replay</button>
-          <button id="focuslane-end-subs">Subscriptions</button>
-          <button id="focuslane-end-close">Close tab</button>
-          <button id="focuslane-end-cancel">Stay here</button>
-        </div>
-      </div>
-    `;
+
+    const panel = document.createElement("div");
+    panel.className = "focuslane-panel";
+
+    const title = document.createElement("h2");
+    title.textContent = "Video finished";
+
+    const text = document.createElement("p");
+    text.id = "focuslane-end-text";
+    text.textContent = "Choose the next intentional step.";
+
+    const queryInput = document.createElement("input");
+    queryInput.id = "focuslane-end-query";
+    queryInput.type = "text";
+    queryInput.placeholder = "Search for the next video";
+
+    const actions = document.createElement("div");
+    actions.className = "focuslane-actions";
+
+    const searchButton = document.createElement("button");
+    searchButton.id = "focuslane-end-search";
+    searchButton.className = "primary";
+    searchButton.textContent = "Search";
+
+    const replayButton = document.createElement("button");
+    replayButton.id = "focuslane-end-replay";
+    replayButton.textContent = "Replay";
+
+    const subsButton = document.createElement("button");
+    subsButton.id = "focuslane-end-subs";
+    subsButton.textContent = "Subscriptions";
+
+    const closeButton = document.createElement("button");
+    closeButton.id = "focuslane-end-close";
+    closeButton.textContent = "Close tab";
+
+    const cancelButton = document.createElement("button");
+    cancelButton.id = "focuslane-end-cancel";
+    cancelButton.textContent = "Stay here";
+
+    actions.append(searchButton, replayButton, subsButton, closeButton, cancelButton);
+    panel.append(title, text, queryInput, actions);
+    overlay.appendChild(panel);
     document.documentElement.appendChild(overlay);
 
     overlay.querySelector("#focuslane-end-search").addEventListener("click", () => {
