@@ -1,0 +1,13 @@
+{
+  "name": "focuslane",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "lint": "web-ext lint --source-dir . --ignore-files package.json package-lock.json amo-metadata.json DESIGN.md \".github/**\" \"artifacts/**\"",
+    "build": "web-ext build --source-dir . --artifacts-dir artifacts --overwrite-dest --ignore-files package.json package-lock.json amo-metadata.json DESIGN.md \".github/**\" \"artifacts/**\"",
+    "publish:amo": "web-ext sign --source-dir . --artifacts-dir artifacts --channel listed --amo-metadata amo-metadata.json --ignore-files package.json package-lock.json amo-metadata.json DESIGN.md \".github/**\" \"artifacts/**\""
+  },
+  "devDependencies": {
+    "web-ext": "^8.0.0"
+  }
+}
