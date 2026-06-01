@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "focuslane",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Make YouTube calmer with Shorts blocking, focus modes, filters, schedules, and distraction controls.",
   "permissions": [
     "storage",
