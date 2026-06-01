@@ -1,0 +1,5 @@
+node_modules/
+artifacts/
+.web-ext-artifacts/
+.amo-upload-uuid
+.web-extension-id
