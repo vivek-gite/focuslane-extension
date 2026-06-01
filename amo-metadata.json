@@ -12,7 +12,7 @@
   "name": {
     "en-US": "focuslane"
   },
-  "tags": ["productivity","privacy", "youtube", "content blocker"],
+  "tags": ["privacy", "youtube", "content blocker"],
   "version": {
     "license": "all-rights-reserved"
   }
