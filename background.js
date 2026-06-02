@@ -12,6 +12,8 @@ const AI_FILTERED_VIDEOS_LIMIT = 100;
 const AI_USER_FEEDBACK_KEY = "aiUserFeedback";
 const AI_USER_FEEDBACK_LIMIT = 100;
 const AI_FEEDBACK_EXAMPLE_LIMIT = 8;
+const AI_DESCRIPTION_LIMIT = 1200;
+const AI_TRANSCRIPT_LIMIT = 2200;
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 const SPONSOR_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
 const DISLIKE_CACHE_EXPIRY_MS = 6 * 60 * 60 * 1000;
@@ -333,6 +335,195 @@ async function classifyWithBackend(titles, filterRule, preferenceProfile) {
   }
 }
 
+function truncateAiMetadata(value, limit) {
+  return normalizeAiMetadataText(value).slice(0, limit);
+}
+
+function readYouTubeText(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value.simpleText === "string") return value.simpleText;
+  if (Array.isArray(value.runs)) return value.runs.map((run) => run.text || "").join("");
+  return "";
+}
+
+function extractBalancedJson(text, start) {
+  const open = text.indexOf("{", start);
+  if (open === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = open; i < text.length; i++) {
+    const char = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+    } else if (char === "{") {
+      depth++;
+    } else if (char === "}") {
+      depth--;
+      if (depth === 0) return text.slice(open, i + 1);
+    }
+  }
+
+  return null;
+}
+
+function extractInitialPlayerResponse(html) {
+  const markers = [
+    "ytInitialPlayerResponse =",
+    "ytInitialPlayerResponse="
+  ];
+
+  for (const marker of markers) {
+    const index = html.indexOf(marker);
+    if (index === -1) continue;
+    const json = extractBalancedJson(html, index + marker.length);
+    if (!json) continue;
+    try {
+      return JSON.parse(json);
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function extractPlayerDescription(playerResponse) {
+  const videoDetails = playerResponse?.videoDetails || {};
+  const microformat = playerResponse?.microformat?.playerMicroformatRenderer || {};
+  return truncateAiMetadata(
+    videoDetails.shortDescription ||
+      readYouTubeText(microformat.description) ||
+      readYouTubeText(microformat.attributedDescription),
+    AI_DESCRIPTION_LIMIT
+  );
+}
+
+function selectCaptionTrack(playerResponse) {
+  const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+  if (!Array.isArray(tracks) || !tracks.length) return null;
+
+  return tracks.find((track) => String(track.languageCode || "").toLowerCase().startsWith("en") && track.kind !== "asr") ||
+    tracks.find((track) => String(track.languageCode || "").toLowerCase().startsWith("en")) ||
+    tracks.find((track) => track.kind !== "asr") ||
+    tracks[0];
+}
+
+function decodeHtmlEntities(value) {
+  return String(value || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'");
+}
+
+function transcriptFromJson3(data) {
+  const parts = [];
+  const events = Array.isArray(data?.events) ? data.events : [];
+  for (const event of events) {
+    if (!Array.isArray(event.segs)) continue;
+    const text = event.segs.map((segment) => segment.utf8 || "").join("");
+    if (text.trim()) parts.push(text);
+  }
+  return truncateAiMetadata(parts.join(" "), AI_TRANSCRIPT_LIMIT);
+}
+
+function transcriptFromXml(text) {
+  const parts = [];
+  const matches = String(text || "").matchAll(/<text\b[^>]*>([\s\S]*?)<\/text>/g);
+  for (const match of matches) {
+    const decoded = decodeHtmlEntities(match[1]);
+    if (decoded.trim()) parts.push(decoded);
+  }
+  return truncateAiMetadata(parts.join(" "), AI_TRANSCRIPT_LIMIT);
+}
+
+async function fetchTranscript(track) {
+  if (!track?.baseUrl) return "";
+
+  try {
+    const url = new URL(track.baseUrl);
+    url.searchParams.set("fmt", "json3");
+    const response = await fetch(url.toString(), { headers: { Accept: "application/json, text/xml, text/plain" } });
+    if (!response.ok) return "";
+    const text = await response.text();
+    try {
+      return transcriptFromJson3(JSON.parse(text));
+    } catch (_err) {
+      return transcriptFromXml(text);
+    }
+  } catch (_err) {
+    return "";
+  }
+}
+
+async function fetchYouTubeVideoMetadata(videoId) {
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId || "")) return null;
+  const key = `${METADATA_CACHE_PREFIX}${videoId}`;
+  const cached = await browser.storage.local.get({ [key]: null });
+  const entry = cached[key];
+  const now = Date.now();
+  if (entry && now - Number(entry.timestamp || 0) < CACHE_EXPIRY_MS) {
+    return entry.metadata || null;
+  }
+
+  try {
+    const response = await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`, {
+      headers: { Accept: "text/html" }
+    });
+    if (!response.ok) return null;
+
+    const html = await response.text();
+    const playerResponse = extractInitialPlayerResponse(html);
+    if (!playerResponse) return null;
+
+    const track = selectCaptionTrack(playerResponse);
+    const transcript = track ? await fetchTranscript(track) : "";
+    const metadata = {
+      channel: truncateAiMetadata(playerResponse.videoDetails?.author, 160),
+      description: extractPlayerDescription(playerResponse),
+      transcript
+    };
+    await browser.storage.local.set({ [key]: { metadata, timestamp: now } });
+    return metadata;
+  } catch (_err) {
+    return null;
+  }
+}
+
+async function enrichVideoMetadata(video) {
+  if (video.channel && video.description && video.transcript) return video;
+
+  const metadata = await fetchYouTubeVideoMetadata(video.id);
+  if (!metadata) return video;
+
+  return Object.assign({}, video, {
+    channel: video.channel || metadata.channel || "",
+    description: video.description || metadata.description || "",
+    transcript: video.transcript || metadata.transcript || ""
+  });
+}
+
+async function enrichVideosMetadata(videos) {
+  return Promise.all(videos.map((video) => enrichVideoMetadata(video)));
+}
+
 function buildDecision(show, confidence, reason, source) {
   return {
     show: Boolean(show),
@@ -461,13 +652,14 @@ async function handleClassifyVideos(message) {
     }));
   if (!videos.length) return { results: {}, decisions: {}, error: null };
 
+  const enrichedVideos = await enrichVideosMetadata(videos);
   const { settings: aiSettings, feedback } = await getAiPreferenceState();
   const preferenceSignature = getPreferenceSignature(aiSettings, feedback.version);
   const results = {};
   const decisions = {};
   const needsAi = [];
 
-  for (const video of videos) {
+  for (const video of enrichedVideos) {
     const userDecision = applyUserDecision(video, filterRule, aiSettings, feedback);
     if (userDecision) {
       results[video.id] = userDecision.show;

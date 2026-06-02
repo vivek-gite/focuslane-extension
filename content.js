@@ -754,16 +754,27 @@ function extractChannel(el) {
     "ytd-channel-name a",
     "#channel-name a",
     ".ytd-channel-name a",
+    "yt-formatted-string#text a",
+    "a.yt-core-attributed-string__link[href^='/@']",
+    "a.yt-lockup-metadata-view-model-wiz__metadata-text[href^='/@']",
     "a.yt-simple-endpoint[href^='/@']",
     "a.yt-simple-endpoint[href^='/channel/']"
   ];
   for (const selector of selectors) {
     const channelEl = el.querySelector(selector);
     if (channelEl) {
-      const text = (channelEl.textContent || channelEl.getAttribute("title") || "").trim();
+      const text = (
+        channelEl.textContent ||
+        channelEl.getAttribute("title") ||
+        channelEl.getAttribute("aria-label") ||
+        ""
+      ).trim();
       if (text) return text;
     }
   }
+  const ariaLabel = (el.querySelector("#dismissible") || el).getAttribute("aria-label") || "";
+  const byMatch = ariaLabel.match(/\sby\s(.+?)\s(?:\d|No views|Streamed|Premiered|Updated|New\b)/i);
+  if (byMatch?.[1]) return byMatch[1].trim();
   return "";
 }
 
