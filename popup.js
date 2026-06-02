@@ -100,8 +100,8 @@ const FRONTEND_DISABLED_SETTINGS = {
 };
 const SVG_NS = "http://www.w3.org/2000/svg";
 const extensionApi =
-  typeof browser !== "undefined" ? browser :
-  typeof chrome !== "undefined" ? chrome :
+  typeof browser !== "undefined" && browser?.runtime?.getManifest && browser?.storage ? browser :
+  typeof chrome !== "undefined" && chrome?.runtime?.getManifest && chrome?.storage ? chrome :
   null;
 
 const STATS_DEFAULT = {
