@@ -99,6 +99,10 @@ const FRONTEND_DISABLED_SETTINGS = {
   intentGate: false
 };
 const SVG_NS = "http://www.w3.org/2000/svg";
+const extensionApi =
+  typeof browser !== "undefined" ? browser :
+  typeof chrome !== "undefined" ? chrome :
+  null;
 
 const STATS_DEFAULT = {
   shortsBlocked: 0,
@@ -167,6 +171,7 @@ const statusCard = document.getElementById("statusCard");
 const modeIconWrap = document.getElementById("modeIconWrap");
 const modeStatus = document.getElementById("modeStatus");
 const detailStatus = document.getElementById("detailStatus");
+const versionBadge = document.getElementById("versionBadge");
 const unlockPhrase = document.getElementById("unlockPhrase");
 const unlockStatus = document.getElementById("unlockStatus");
 const aiFilteredVideoList = document.getElementById("aiFilteredVideoList");
@@ -212,6 +217,32 @@ function setMessage(message, type = "") {
     line.textContent = message;
     line.className = "status-line" + (type ? ` ${type}` : "");
   });
+}
+
+function formatDisplayVersion(version) {
+  const parts = String(version || "").trim().split(".");
+  if (parts.length >= 2 && parts[0] && parts[1]) return `v${parts[0]}.${parts[1]}`;
+  return parts[0] ? `v${parts[0]}` : "";
+}
+
+async function getManifestVersion() {
+  if (extensionApi?.runtime?.getManifest) return extensionApi.runtime.getManifest().version;
+
+  try {
+    const response = await fetch("manifest.json");
+    if (!response.ok) return "";
+    const manifest = await response.json();
+    return manifest.version || "";
+  } catch (err) {
+    return "";
+  }
+}
+
+async function updateVersionBadge() {
+  if (!versionBadge) return;
+  const version = await getManifestVersion();
+  const displayVersion = formatDisplayVersion(version);
+  if (displayVersion) versionBadge.textContent = displayVersion;
 }
 
 function wireTabs() {
@@ -348,7 +379,12 @@ function updateAiFilterRuleHint() {
 }
 
 async function loadAiFilterRuleHistory() {
-  const state = await browser.storage.local.get({ [AI_FILTER_HISTORY_KEY]: [] });
+  if (!extensionApi) {
+    aiFilterRuleHistory = [];
+    renderAiFilterHistory();
+    return;
+  }
+  const state = await extensionApi.storage.local.get({ [AI_FILTER_HISTORY_KEY]: [] });
   aiFilterRuleHistory = normalizeAiFilterRuleHistory(state[AI_FILTER_HISTORY_KEY]);
   renderAiFilterHistory();
 }
@@ -360,7 +396,7 @@ async function rememberAiFilterRule(rule) {
     normalizedRule,
     ...aiFilterRuleHistory.filter((item) => item.toLowerCase() !== normalizedRule.toLowerCase())
   ]);
-  await browser.storage.local.set({ [AI_FILTER_HISTORY_KEY]: aiFilterRuleHistory });
+  if (extensionApi) await extensionApi.storage.local.set({ [AI_FILTER_HISTORY_KEY]: aiFilterRuleHistory });
   renderAiFilterHistory();
 }
 
@@ -497,7 +533,7 @@ async function saveModeSelection(mode) {
     partial[key] = getToggleValue(key);
   });
 
-  await browser.storage.sync.set(partial);
+  if (extensionApi) await extensionApi.storage.sync.set(partial);
   currentSettings = Object.assign({}, currentSettings, partial);
   setMessage(`${modeLabel(mode)} mode applied.`, "success");
   setTimeout(() => setMessage(""), 1600);
@@ -579,12 +615,12 @@ async function saveSettings(options = {}) {
     return false;
   }
 
-  await browser.storage.sync.set(nextSettings);
+  if (extensionApi) await extensionApi.storage.sync.set(nextSettings);
   currentSettings = nextSettings;
   if (nextSettings.aiFilterRule) await rememberAiFilterRule(nextSettings.aiFilterRule);
 
   if (nextSettings.pomodoroEnabled && options.startPomodoro) {
-    await browser.storage.local.set({ pomodoroPhase: options.phase || "focus", pomodoroStartedAt: Date.now() });
+    if (extensionApi) await extensionApi.storage.local.set({ pomodoroPhase: options.phase || "focus", pomodoroStartedAt: Date.now() });
   }
 
   if (!options.silent) {
@@ -608,7 +644,9 @@ function scheduleAutoSave() {
 }
 
 async function loadRuntimeState() {
-  const state = await browser.storage.local.get({ unlockUntil: 0, pomodoroPhase: "focus", pomodoroStartedAt: 0 });
+  const state = extensionApi
+    ? await extensionApi.storage.local.get({ unlockUntil: 0, pomodoroPhase: "focus", pomodoroStartedAt: 0 })
+    : { unlockUntil: 0, pomodoroPhase: "focus", pomodoroStartedAt: 0 };
   const unlockUntil = Number(state.unlockUntil) || 0;
   if (unlockUntil > Date.now()) {
     unlockStatus.textContent = `Unlocked until ${new Date(unlockUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`;
@@ -623,15 +661,16 @@ async function loadRuntimeState() {
 }
 
 async function loadSettings() {
-  const syncState = await browser.storage.sync.get(DEFAULT_SETTINGS);
+  const syncState = extensionApi ? await extensionApi.storage.sync.get(DEFAULT_SETTINGS) : Object.assign({}, DEFAULT_SETTINGS);
   if (typeof syncState.aiFilterRule === "undefined" && typeof syncState.keywords !== "undefined") {
     syncState.aiFilterRule = syncState.keywords || "";
   }
   const sanitized = disableFrontendSettings(syncState);
-  if (syncState.endGuard !== sanitized.endGuard ||
+  if (extensionApi &&
+      (syncState.endGuard !== sanitized.endGuard ||
       syncState.endGuardCloseTab !== sanitized.endGuardCloseTab ||
-      syncState.intentGate !== sanitized.intentGate) {
-    await browser.storage.sync.set(FRONTEND_DISABLED_SETTINGS);
+      syncState.intentGate !== sanitized.intentGate)) {
+    await extensionApi.storage.sync.set(FRONTEND_DISABLED_SETTINGS);
   }
   setControls(sanitized);
 }
@@ -667,7 +706,11 @@ function formatFilteredVideoTime(timestamp) {
 }
 
 async function recordFilteredVideoFeedback(video, action) {
-  const response = await browser.runtime.sendMessage({
+  if (!extensionApi) {
+    setMessage("Feedback is available when the extension is loaded.", "error");
+    return;
+  }
+  const response = await extensionApi.runtime.sendMessage({
     type: "RECORD_AI_FEEDBACK",
     feedback: {
       id: video.id,
@@ -733,7 +776,7 @@ function renderAiFilteredVideos(videos) {
 }
 
 async function loadStats() {
-  currentStats = await browser.runtime.sendMessage({ type: "GET_STATS" });
+  currentStats = extensionApi ? await extensionApi.runtime.sendMessage({ type: "GET_STATS" }) : { today: STATS_DEFAULT, week: STATS_DEFAULT, all: STATS_DEFAULT };
   displayStats(activeStatsPeriod);
 }
 
@@ -743,8 +786,10 @@ async function temporaryUnlock(minutes) {
     return;
   }
   const unlockUntil = Date.now() + minutes * 60 * 1000;
-  await browser.storage.local.set({ unlockUntil });
-  await browser.runtime.sendMessage({ type: "INCREMENT_STATS", delta: { unlockCount: 1 } });
+  if (extensionApi) {
+    await extensionApi.storage.local.set({ unlockUntil });
+    await extensionApi.runtime.sendMessage({ type: "INCREMENT_STATS", delta: { unlockCount: 1 } });
+  }
   unlockPhrase.value = "";
   await loadRuntimeState();
   setMessage(`Unlocked for ${minutes} minutes.`, "success");
@@ -796,7 +841,11 @@ function wireEvents() {
   saveBtn.addEventListener("click", () => saveSettings());
 
   clearCacheBtn.addEventListener("click", async () => {
-    const response = await browser.runtime.sendMessage({ type: "CLEAR_CACHE" });
+    if (!extensionApi) {
+      setMessage("Caches are available when the extension is loaded.", "error");
+      return;
+    }
+    const response = await extensionApi.runtime.sendMessage({ type: "CLEAR_CACHE" });
     setMessage(`Caches cleared (${response?.count || 0} entries).`, "success");
   });
 
@@ -836,7 +885,7 @@ renderToggles();
 renderDays();
 wireEvents();
 
-Promise.all([loadAiFilterRuleHistory(), loadSettings()])
+Promise.all([updateVersionBadge(), loadAiFilterRuleHistory(), loadSettings()])
   .then(() => rememberAiFilterRule(currentSettings.aiFilterRule))
   .then(loadRuntimeState)
   .then(loadStats)
