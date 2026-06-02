@@ -4,6 +4,12 @@ focuslane is a Firefox extension that makes YouTube calmer and more intentional.
 
 The extension is built as a Firefox Manifest V2 add-on with a background script, a YouTube content script, and a popup UI.
 
+## Install
+
+Install focuslane from Firefox Add-ons:
+
+https://addons.mozilla.org/en-US/firefox/addon/focuslane/
+
 ## Features
 
 ### Focus Modes
