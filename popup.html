@@ -9,119 +9,259 @@
 
     body {
       width: 380px;
-      max-height: 620px;
-      overflow-y: auto;
-      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-      background: #fff;
-      color: #17171c;
+      height: 620px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      font-family: "DM Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: #EDE6D8;
+      color: #28200F;
       -webkit-font-smoothing: antialiased;
     }
 
+    /* ── Header ── */
     .header {
-      position: sticky;
-      top: 0;
-      z-index: 5;
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 14px 18px;
-      border-bottom: 1px solid #eeeeF2;
-      background: rgba(255, 255, 255, 0.96);
-      backdrop-filter: blur(10px);
+      padding: 13px 16px;
+      background: #FFFDF8;
+      border-bottom: 1px solid #E5DDD0;
     }
 
-    .header img { width: 24px; height: 24px; border-radius: 6px; }
-    .brand { font-size: 14px; font-weight: 650; }
-    .version { margin-left: auto; color: #93939f; font-size: 11px; }
+    .header-icon { width: 36px; height: 36px; border-radius: 10px; overflow: hidden; flex-shrink: 0; }
+    .header-icon img { width: 100%; height: 100%; display: block; }
+    .brand { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
 
-    .main {
+    .version-badge {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 500;
+      color: #8B7A62;
+      background: #F7F3EC;
+      border: 1px solid #E5DDD0;
+      border-radius: 999px;
+      padding: 3px 10px;
+    }
+
+    /* ── Tab navigation ── */
+    .tab-nav {
+      flex-shrink: 0;
       display: flex;
-      flex-direction: column;
-      gap: 14px;
-      padding: 14px 18px 18px;
+      align-items: center;
+      gap: 3px;
+      padding: 9px 16px;
+      background: #FFFDF8;
+      border-bottom: 1px solid #E5DDD0;
     }
 
-    .section {
+    .tab-btn {
+      flex: 1;
+      padding: 8px 10px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: #9B8A72;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .tab-btn.active { background: #C05C30; color: #fff; font-weight: 650; }
+    .tab-btn:not(.active):hover { background: #F0EBE0; color: #28200F; }
+
+    /* ── Tab panels ── */
+    .tab-panel { flex: 1; overflow-y: auto; display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Main layout ── */
+    .main { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 36px; }
+
+    /* ── Status card ── */
+    .status-card {
       display: flex;
-      flex-direction: column;
-      gap: 9px;
-      padding-top: 12px;
-      border-top: 1px solid #f0f0f2;
+      align-items: center;
+      gap: 13px;
+      background: #fff;
+      border: 1.5px solid #E5DDD0;
+      border-left: 4px solid #C05C30;
+      border-radius: 14px;
+      padding: 14px 14px 14px 13px;
+      position: relative;
     }
 
-    .section:first-child {
-      padding-top: 0;
-      border-top: 0;
+    .status-icon-wrap {
+      width: 42px;
+      height: 42px;
+      border-radius: 11px;
+      background: #FEF0E8;
+      border: 1px solid #F2D5C4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
+
+    .status-icon-wrap svg {
+      width: 20px;
+      height: 20px;
+      stroke: #C05C30;
+      transition: stroke 0.15s ease;
+    }
+
+    .status-card[data-mode="study"] {
+      border-left-color: #2F7D65;
+    }
+
+    .status-card[data-mode="study"] .status-icon-wrap {
+      background: #E7F3EF;
+      border-color: #C9E2D9;
+    }
+
+    .status-card[data-mode="study"] .status-icon-wrap svg {
+      stroke: #2F7D65;
+    }
+
+    .status-card[data-mode="strict"] {
+      border-left-color: #8A5A24;
+    }
+
+    .status-card[data-mode="strict"] .status-icon-wrap {
+      background: #F8EEDC;
+      border-color: #E8D1AA;
+    }
+
+    .status-card[data-mode="strict"] .status-icon-wrap svg {
+      stroke: #8A5A24;
+    }
+
+    .status-card[data-mode="custom"] {
+      border-left-color: #526B7A;
+    }
+
+    .status-card[data-mode="custom"] .status-icon-wrap {
+      background: #E9F0F3;
+      border-color: #CBD9DF;
+    }
+
+    .status-card[data-mode="custom"] .status-icon-wrap svg {
+      stroke: #526B7A;
+    }
+
+    .status-text { flex: 1; min-width: 0; }
+    .status-text strong { display: block; font-size: 13.5px; font-weight: 700; line-height: 1.3; }
+    .status-text span { font-size: 11px; color: #9B8A72; line-height: 1.4; display: block; margin-top: 2px; }
+
+    .status-dot {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 2.5px rgba(34, 197, 94, 0.22);
+    }
+
+    /* ── Section ── */
+    .section { display: flex; flex-direction: column; gap: 9px; }
 
     .section-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: 10px;
+      font-size: 10.5px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: #a1a1aa;
+      letter-spacing: 0.75px;
+      color: #9B8A72;
     }
 
-    .status {
+    /* ── Segmented mode control ── */
+    .mode-seg {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
-      border: 1px solid #f0f0f2;
-      border-radius: 8px;
-      padding: 10px 12px;
-      background: #fafafa;
-    }
-
-    .status strong { font-size: 13px; }
-    .status span { color: #70707a; font-size: 11px; line-height: 1.35; }
-
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .row-text {
-      display: flex;
-      flex-direction: column;
+      background: #E5DDD0;
+      border-radius: 13px;
+      padding: 3px;
       gap: 2px;
-      min-width: 0;
     }
 
-    .row-text strong {
-      font-size: 12px;
-      font-weight: 600;
-      color: #17171c;
+    .mode-btn {
+      flex: 1;
+      padding: 7.5px 4px;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      color: #8B7A62;
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+      text-align: center;
     }
 
-    .row-text span {
-      font-size: 10.5px;
-      color: #93939f;
-      line-height: 1.35;
+    .mode-btn.active {
+      background: #fff;
+      color: #28200F;
+      font-weight: 700;
+      box-shadow: 0 1px 3px rgba(40,32,15,0.14), 0 0 0 0.5px rgba(40,32,15,0.05);
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+    /* ── Toggle list / cards ── */
+    #toggleList { display: flex; flex-direction: column; gap: 7px; }
+
+    #toggleList .row {
+      background: #fff;
+      border: 1px solid #E5DDD0;
+      border-radius: 13px;
+      padding: 13px 14px;
     }
 
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
+    /* ── Shared row ── */
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .row-text strong { font-size: 13px; font-weight: 650; color: #28200F; }
+    .row-text span { font-size: 11px; color: #9B8A72; line-height: 1.35; }
+
+    /* ── Toggle switch ── */
+    .toggle { position: relative; width: 44px; height: 26px; flex: 0 0 auto; }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: #D6CCBE;
+      cursor: pointer;
+      transition: background 0.18s ease;
     }
 
-    label {
-      font-size: 11px;
-      font-weight: 550;
-      color: #70707a;
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      left: 3px;
+      top: 3px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      transition: transform 0.18s ease;
     }
+
+    .toggle input:checked + .slider { background: #C05C30; }
+    .toggle input:checked + .slider::before { transform: translateX(18px); }
+
+    /* ── Sub-sections (Settings tab) ── */
+    .sub-section { display: flex; flex-direction: column; gap: 9px; padding-top: 14px; border-top: 1px solid #E5DDD0; }
+    .sub-section:first-child { padding-top: 0; border-top: 0; }
+
+    /* ── Form fields ── */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    label { font-size: 11px; font-weight: 550; color: #8B7A62; }
 
     select,
     input[type="text"],
@@ -130,374 +270,409 @@
     input[type="number"],
     textarea {
       width: 100%;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      background: #fff;
-      color: #17171c;
+      border: 1px solid #E5DDD0;
+      border-radius: 9px;
+      background: #FFFDF8;
+      color: #28200F;
       font: inherit;
       font-size: 12px;
       padding: 8px 10px;
       outline: none;
+      transition: border-color 0.15s;
     }
 
-    textarea {
+    textarea { min-height: 58px; resize: vertical; line-height: 1.35; }
+    select:focus, input:focus, textarea:focus { border-color: #C05C30; }
+
+    .ai-rule-composer {
+      overflow: hidden;
+      border: 1px solid #E5DDD0;
+      border-radius: 12px;
+      background: #FFFDF8;
+      box-shadow: 0 1px 2px rgba(40,32,15,0.04);
+    }
+
+    .ai-rule-composer:focus-within {
+      border-color: #C05C30;
+    }
+
+    .ai-rule-composer textarea {
       min-height: 58px;
-      resize: vertical;
-      line-height: 1.35;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      padding: 10px 12px 7px;
     }
 
-    select:focus,
-    input:focus,
-    textarea:focus {
-      border-color: #17171c;
+    .ai-rule-composer textarea:focus {
+      border-color: transparent;
     }
 
-    .toggle {
-      position: relative;
-      width: 36px;
-      height: 20px;
-      flex: 0 0 auto;
-    }
-
-    .toggle input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-      position: absolute;
-    }
-
-    .slider {
-      position: absolute;
-      inset: 0;
-      border-radius: 999px;
-      background: #d9d9dd;
-      cursor: pointer;
-      transition: background 0.16s ease;
-    }
-
-    .slider::before {
-      content: "";
-      position: absolute;
-      width: 14px;
-      height: 14px;
-      left: 3px;
-      top: 3px;
-      border-radius: 50%;
-      background: #fff;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-      transition: transform 0.16s ease;
-    }
-
-    .toggle input:checked + .slider {
-      background: #17171c;
-    }
-
-    .toggle input:checked + .slider::before {
-      transform: translateX(16px);
-    }
-
-    .btn-row {
+    .ai-rule-toolbar {
       display: flex;
+      align-items: center;
       gap: 7px;
+      min-height: 34px;
+      padding: 6px 10px 8px;
+      border-top: 1px solid #EFE7DA;
+      background: rgba(237, 230, 216, 0.35);
     }
+
+    .ai-rule-history-label {
+      flex: 0 0 auto;
+      color: #9B8A72;
+      font-size: 10.5px;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.45px;
+    }
+
+    .ai-rule-history {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      color: #6F624F;
+      font-size: 11.5px;
+      font-weight: 650;
+      padding: 4px 0;
+    }
+
+    .ai-rule-history:focus {
+      border-color: transparent;
+    }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 7px; }
 
     button {
-      border: 1px solid #e5e7eb;
+      border: 1px solid #E5DDD0;
       border-radius: 999px;
-      background: #fff;
-      color: #17171c;
+      background: #FFFDF8;
+      color: #28200F;
       font: inherit;
       font-size: 12px;
       font-weight: 600;
-      padding: 8px 12px;
+      padding: 8px 14px;
       cursor: pointer;
       transition: background 0.15s, border-color 0.15s, color 0.15s;
     }
 
-    button:hover {
-      border-color: #17171c;
-    }
-
-    .primary {
-      background: #17171c;
-      color: #fff;
-      border-color: #17171c;
-    }
-
-    .primary:hover { background: #303038; }
+    button:hover { background: #F0EBE0; border-color: #C8BAA8; }
+    .primary { background: #C05C30; color: #fff; border-color: #C05C30; }
+    .primary:hover { background: #A84D27; border-color: #A84D27; }
     .grow { flex: 1; }
 
-    .hint {
-      color: #93939f;
-      font-size: 10.5px;
-      line-height: 1.35;
-    }
-
-    .status-line {
-      min-height: 14px;
-      color: #93939f;
-      font-size: 11px;
-    }
-
+    /* ── Misc ── */
+    .hint { color: #9B8A72; font-size: 10.5px; line-height: 1.4; }
+    .hint.error { color: #dc2626; }
+    .hint.success { color: #16a34a; }
+    .status-line { min-height: 14px; color: #9B8A72; font-size: 11px; }
     .status-line.error { color: #dc2626; }
     .status-line.success { color: #16a34a; }
 
-    .days {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 4px;
-    }
-
-    .day {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-      font-size: 10px;
-      color: #70707a;
-      cursor: pointer;
-      user-select: none;
-    }
-
+    /* ── Day picker ── */
+    .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .day { display: flex; align-items: center; justify-content: center; padding: 0; font-size: 10px; color: #8B7A62; cursor: pointer; user-select: none; }
     .day input { display: none; }
-    .day span {
-      width: 100%;
+    .day span { width: 100%; text-align: center; border: 1px solid #E5DDD0; border-radius: 999px; padding: 5px 0; background: #FFFDF8; transition: all 0.15s; }
+    .day input:checked + span { background: #C05C30; color: #fff; border-color: #C05C30; }
+
+    /* ── Stats ── */
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+
+    .stat { border: 1px solid #E5DDD0; border-radius: 12px; padding: 10px 8px; background: #fff; }
+    .stat strong { display: block; font-size: 16px; font-weight: 700; }
+    .stat span { color: #9B8A72; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.3px; line-height: 1.3; }
+
+    .filtered-video-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      max-height: 230px;
+      overflow-y: auto;
+    }
+
+    .filtered-video-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      border: 1px solid #E5DDD0;
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px 12px;
+    }
+
+    .filtered-video-item a {
+      color: #28200F;
+      font-size: 12px;
+      font-weight: 650;
+      line-height: 1.3;
+      text-decoration: none;
+    }
+
+    .filtered-video-item a:hover { text-decoration: underline; }
+    .filtered-video-meta { color: #9B8A72; font-size: 10.5px; line-height: 1.35; }
+    .filtered-video-empty {
+      border: 1px dashed #D8CCBB;
+      border-radius: 12px;
+      color: #9B8A72;
+      font-size: 11px;
+      padding: 12px;
       text-align: center;
-      border: 1px solid #e5e7eb;
-      border-radius: 999px;
-      padding: 5px 0;
-    }
-
-    .day input:checked + span {
-      background: #17171c;
-      color: #fff;
-      border-color: #17171c;
-    }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-    }
-
-    .stat {
-      border: 1px solid #f0f0f2;
-      border-radius: 8px;
-      padding: 8px;
-      background: #fafafa;
-    }
-
-    .stat strong {
-      display: block;
-      font-size: 15px;
-      font-weight: 700;
-    }
-
-    .stat span {
-      color: #93939f;
-      font-size: 9.5px;
-      text-transform: uppercase;
-      letter-spacing: 0.25px;
-      line-height: 1.25;
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <img src="icons/icon48.png" alt="focuslane" />
-    <span class="brand">focuslane</span>
-    <span class="version">v2.0</span>
-  </div>
 
-  <main class="main">
-    <section class="section">
-      <div class="status">
-        <strong id="modeStatus">Loading...</strong>
-        <span id="detailStatus">Preparing focus controls.</span>
+  <!-- ── Header ── -->
+  <header class="header">
+    <div class="header-icon">
+      <img src="icons/icon48.png" alt="focuslane" />
+    </div>
+    <span class="brand">focuslane</span>
+    <span class="version-badge">v2.0</span>
+  </header>
+
+  <!-- ── Tab navigation ── -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="focus">Focus</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
+    <button class="tab-btn" data-tab="stats">Stats</button>
+  </nav>
+
+  <!-- ══ Focus tab ══ -->
+  <div class="tab-panel active" id="tab-focus">
+    <div class="main">
+
+      <!-- Status card -->
+      <div class="status-card" id="statusCard" data-mode="minimal">
+        <div class="status-icon-wrap" id="modeIconWrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="7"/>
+            <circle cx="12" cy="12" r="2"/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+          </svg>
+        </div>
+        <div class="status-text">
+          <strong id="modeStatus">Loading...</strong>
+          <span id="detailStatus">Preparing focus controls.</span>
+        </div>
+        <span class="status-dot"></span>
       </div>
 
-      <div class="field">
-        <label for="focusMode">Focus mode</label>
-        <select id="focusMode">
-          <option value="minimal">Minimal - Shorts and comments</option>
-          <option value="study">Study - quiet watch pages</option>
-          <option value="strict">Strict - no open-ended browsing</option>
+      <!-- AI filter rule composer -->
+      <section class="section">
+        <div class="section-title">AI Filter</div>
+        <div class="field">
+          <label for="aiFilterRule">Natural language rule</label>
+          <div class="ai-rule-composer">
+            <textarea id="aiFilterRule" placeholder="Only show programming tutorials and tech reviews. Hide gaming, vlogs, and politics."></textarea>
+            <div class="ai-rule-toolbar">
+              <span class="ai-rule-history-label">Reuse</span>
+              <select id="aiFilterHistory" class="ai-rule-history" aria-label="Previously used AI filter rules">
+                <option value="">No previous rules</option>
+              </select>
+            </div>
+          </div>
+          <span class="hint" id="aiFilterRuleHint">Type at least 1 word to turn on title filtering automatically.</span>
+        </div>
+        <div class="btn-row">
+          <button id="applyFilterBtn" class="primary grow">Apply filter</button>
+          <button id="clearCacheBtn" class="grow">Clear caches</button>
+        </div>
+        <div class="status-line" id="focusSaveStatus"></div>
+      </section>
+
+      <!-- Focus mode segmented control -->
+      <section class="section">
+        <div class="section-title">Focus Mode</div>
+        <div class="mode-seg" id="modeSegControl">
+          <button class="mode-btn" data-mode="minimal">Minimal</button>
+          <button class="mode-btn" data-mode="study">Study</button>
+          <button class="mode-btn" data-mode="strict">Strict</button>
+          <button class="mode-btn" data-mode="custom">Custom</button>
+        </div>
+        <!-- Hidden select keeps popup.js working without changes -->
+        <select id="focusMode" style="display:none">
+          <option value="minimal">Minimal</option>
+          <option value="study">Study</option>
+          <option value="strict">Strict</option>
           <option value="custom">Custom</option>
         </select>
-      </div>
-    </section>
+      </section>
 
-    <section class="section">
-      <div class="section-title">Quick Toggles</div>
-      <div id="toggleList"></div>
-    </section>
+      <!-- Quick toggles -->
+      <section class="section">
+        <div class="section-title">Quick Toggles</div>
+        <div id="toggleList"></div>
+      </section>
 
-    <section class="section">
-      <div class="section-title">Return YouTube Dislike</div>
-      <div class="row">
-        <div class="row-text">
-          <strong>Show dislike count</strong>
-          <span>Display estimated dislikes beside YouTube's dislike button.</span>
+    </div>
+  </div>
+
+  <!-- ══ Settings tab ══ -->
+  <div class="tab-panel" id="tab-settings">
+    <div class="main">
+
+      <div class="sub-section">
+        <div class="section-title">Return YouTube Dislike</div>
+        <div class="row">
+          <div class="row-text">
+            <strong>Show dislike count</strong>
+            <span>Display estimated dislikes beside YouTube's dislike button.</span>
+          </div>
+          <label class="toggle">
+            <input id="dislikeCountEnabled" type="checkbox" />
+            <span class="slider"></span>
+          </label>
         </div>
-        <label class="toggle">
-          <input id="dislikeCountEnabled" type="checkbox" />
-          <span class="slider"></span>
-        </label>
+        <span class="hint">When enabled, the current YouTube video ID is sent to Return YouTube Dislike.</span>
       </div>
-      <span class="hint">When enabled, the current YouTube video ID is sent to Return YouTube Dislike.</span>
-    </section>
 
-    <section class="section">
-      <div class="section-title">Learning Stack</div>
-      <div class="row">
-        <div class="row-text">
-          <strong>Enable Learning Stack</strong>
-          <span>Queue videos to watch in focused learning sessions.</span>
+      <div class="sub-section">
+        <div class="section-title">Learning Stack</div>
+        <div class="row">
+          <div class="row-text">
+            <strong>Enable Learning Stack</strong>
+            <span>Queue videos to watch in focused learning sessions.</span>
+          </div>
+          <label class="toggle">
+            <input id="learningStackEnabled" type="checkbox" />
+            <span class="slider"></span>
+          </label>
         </div>
-        <label class="toggle">
-          <input id="learningStackEnabled" type="checkbox" />
-          <span class="slider"></span>
-        </label>
       </div>
-    </section>
 
-    <section class="section">
-      <div class="section-title">AI Filter</div>
-      <div class="row">
-        <div class="row-text">
-          <strong>Use Groq title filtering</strong>
-          <span>Optional title-based filtering with your own API key.</span>
-        </div>
-        <label class="toggle">
-          <input id="filterEnabled" type="checkbox" />
-          <span class="slider"></span>
-        </label>
-      </div>
-      <div class="field">
-        <label for="aiFilterRule">AI filter rule</label>
-        <textarea id="aiFilterRule" placeholder="Only show programming tutorials and tech reviews. Hide gaming, vlogs, and politics."></textarea>
-        <span class="hint">When enabled, video titles and this rule are sent to the focuslane backend for classification.</span>
-      </div>
-      <div class="btn-row">
-        <button id="clearCacheBtn" class="grow">Clear caches</button>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-title">SponsorBlock</div>
-      <div class="row">
-        <div class="row-text">
-          <strong>Skip sponsor segments</strong>
-          <span>Uses SponsorBlock's public API for the current video only.</span>
-        </div>
-        <label class="toggle">
-          <input id="sponsorBlockEnabled" type="checkbox" />
-          <span class="slider"></span>
-        </label>
-      </div>
-      <div class="field">
-        <label for="sponsorSkipMode">Skip behavior</label>
-        <select id="sponsorSkipMode">
-          <option value="auto">Automatically skip</option>
-          <option value="ask">Ask before skipping</option>
-        </select>
-      </div>
-      <span class="hint">When enabled, the current YouTube video ID is sent to SponsorBlock to find sponsor timestamps.</span>
-    </section>
-
-    <section class="section">
-      <div class="section-title">Schedule</div>
-      <div class="row">
-        <div class="row-text">
-          <strong>Focus hours</strong>
-          <span>Apply the selected mode only during these hours.</span>
-        </div>
-        <label class="toggle">
-          <input id="scheduleEnabled" type="checkbox" />
-          <span class="slider"></span>
-        </label>
-      </div>
-      <div class="grid">
-        <div class="field">
-          <label for="scheduleStart">Start</label>
-          <input id="scheduleStart" type="time" />
+      <div class="sub-section">
+        <div class="section-title">SponsorBlock</div>
+        <div class="row">
+          <div class="row-text">
+            <strong>Skip sponsor segments</strong>
+            <span>Uses SponsorBlock's public API for the current video only.</span>
+          </div>
+          <label class="toggle">
+            <input id="sponsorBlockEnabled" type="checkbox" />
+            <span class="slider"></span>
+          </label>
         </div>
         <div class="field">
-          <label for="scheduleEnd">End</label>
-          <input id="scheduleEnd" type="time" />
+          <label for="sponsorSkipMode">Skip behavior</label>
+          <select id="sponsorSkipMode">
+            <option value="auto">Automatically skip</option>
+            <option value="ask">Ask before skipping</option>
+          </select>
         </div>
+        <span class="hint">When enabled, the current YouTube video ID is sent to SponsorBlock to find sponsor timestamps.</span>
       </div>
-      <div class="days" id="scheduleDays"></div>
-    </section>
 
-    <section class="section">
-      <div class="section-title">Pomodoro</div>
-      <div class="row">
-        <div class="row-text">
-          <strong>Focus and break timer</strong>
-          <span>Breaks relax advanced controls, not Shorts blocking.</span>
+      <div class="sub-section">
+        <div class="section-title">Schedule</div>
+        <div class="row">
+          <div class="row-text">
+            <strong>Focus hours</strong>
+            <span>Apply the selected mode only during these hours.</span>
+          </div>
+          <label class="toggle">
+            <input id="scheduleEnabled" type="checkbox" />
+            <span class="slider"></span>
+          </label>
         </div>
-        <label class="toggle">
-          <input id="pomodoroEnabled" type="checkbox" />
-          <span class="slider"></span>
-        </label>
+        <div class="grid">
+          <div class="field">
+            <label for="scheduleStart">Start</label>
+            <input id="scheduleStart" type="time" />
+          </div>
+          <div class="field">
+            <label for="scheduleEnd">End</label>
+            <input id="scheduleEnd" type="time" />
+          </div>
+        </div>
+        <div class="days" id="scheduleDays"></div>
       </div>
-      <div class="grid">
+
+      <div class="sub-section">
+        <div class="section-title">Pomodoro</div>
+        <div class="row">
+          <div class="row-text">
+            <strong>Focus and break timer</strong>
+            <span>Breaks relax advanced controls, not Shorts blocking.</span>
+          </div>
+          <label class="toggle">
+            <input id="pomodoroEnabled" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="grid">
+          <div class="field">
+            <label for="pomodoroFocusMinutes">Focus (min)</label>
+            <input id="pomodoroFocusMinutes" type="number" min="1" step="1" />
+          </div>
+          <div class="field">
+            <label for="pomodoroBreakMinutes">Break (min)</label>
+            <input id="pomodoroBreakMinutes" type="number" min="1" step="1" />
+          </div>
+        </div>
+        <div class="btn-row">
+          <button id="startPomodoroBtn" class="grow">Start focus</button>
+          <button id="startBreakBtn" class="grow">Start break</button>
+        </div>
+      </div>
+
+      <div class="sub-section">
+        <div class="section-title">Temporary Unlock</div>
         <div class="field">
-          <label for="pomodoroFocusMinutes">Focus</label>
-          <input id="pomodoroFocusMinutes" type="number" min="1" step="1" />
+          <label for="unlockPhrase">Unlock phrase</label>
+          <input id="unlockPhrase" type="text" placeholder="Type FOCUS" />
         </div>
-        <div class="field">
-          <label for="pomodoroBreakMinutes">Break</label>
-          <input id="pomodoroBreakMinutes" type="number" min="1" step="1" />
+        <div class="btn-row">
+          <button data-unlock="5" class="unlock-btn grow">5 min</button>
+          <button data-unlock="15" class="unlock-btn grow">15 min</button>
+          <button data-unlock="30" class="unlock-btn grow">30 min</button>
         </div>
+        <span class="hint" id="unlockStatus">No temporary unlock active.</span>
       </div>
-      <div class="btn-row">
-        <button id="startPomodoroBtn" class="grow">Start focus</button>
-        <button id="startBreakBtn" class="grow">Start break</button>
-      </div>
-    </section>
 
-    <section class="section">
-      <div class="section-title">Temporary Unlock</div>
-      <div class="field">
-        <label for="unlockPhrase">Unlock phrase</label>
-        <input id="unlockPhrase" type="text" placeholder="Type FOCUS" />
+      <div class="sub-section">
+        <div class="btn-row">
+          <button id="saveBtn" class="primary grow">Save settings</button>
+        </div>
+        <div class="status-line" id="saveStatus"></div>
       </div>
-      <div class="btn-row">
-        <button data-unlock="5" class="unlock-btn grow">5 min</button>
-        <button data-unlock="15" class="unlock-btn grow">15 min</button>
-        <button data-unlock="30" class="unlock-btn grow">30 min</button>
-      </div>
-      <span class="hint" id="unlockStatus">No temporary unlock active.</span>
-    </section>
 
-    <section class="section">
-      <div class="section-title">Stats</div>
-      <div class="btn-row">
-        <button class="period-btn primary grow" data-period="today">Today</button>
-        <button class="period-btn grow" data-period="week">Week</button>
-        <button class="period-btn grow" data-period="allTime">All</button>
-      </div>
-      <div class="stats-grid">
-        <div class="stat"><strong id="statShorts">0</strong><span>Shorts</span></div>
-        <div class="stat"><strong id="statRecs">0</strong><span>Recommendations</span></div>
-        <div class="stat"><strong id="statFiltered">0</strong><span>Filtered</span></div>
-        <div class="stat"><strong id="statSponsors">0</strong><span>Sponsors</span></div>
-        <div class="stat"><strong id="statFocus">0</strong><span>Focus min</span></div>
-        <div class="stat"><strong id="statUnlocks">0</strong><span>Unlocks</span></div>
-        <div class="stat"><strong id="statSaved">0</strong><span>Saved min</span></div>
-      </div>
-    </section>
+    </div>
+  </div>
 
-    <section class="section">
-      <div class="section-title">Save</div>
-      <div class="btn-row">
-        <button id="saveBtn" class="primary grow">Save settings</button>
-      </div>
-      <div class="status-line" id="saveStatus"></div>
-    </section>
-  </main>
+  <!-- ══ Stats tab ══ -->
+  <div class="tab-panel" id="tab-stats">
+    <div class="main">
+
+      <section class="section">
+        <div class="btn-row">
+          <button class="period-btn primary grow" data-period="today">Today</button>
+          <button class="period-btn grow" data-period="week">Week</button>
+          <button class="period-btn grow" data-period="allTime">All time</button>
+        </div>
+        <div class="stats-grid">
+          <div class="stat"><strong id="statShorts">0</strong><span>Shorts</span></div>
+          <div class="stat"><strong id="statRecs">0</strong><span>Recommendations</span></div>
+          <div class="stat"><strong id="statFiltered">0</strong><span>Filtered</span></div>
+          <div class="stat"><strong id="statSponsors">0</strong><span>Sponsors</span></div>
+          <div class="stat"><strong id="statFocus">0</strong><span>Focus min</span></div>
+          <div class="stat"><strong id="statUnlocks">0</strong><span>Unlocks</span></div>
+          <div class="stat"><strong id="statSaved">0</strong><span>Saved min</span></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">AI Filtered Videos</div>
+        <div class="filtered-video-list" id="aiFilteredVideoList">
+          <div class="filtered-video-empty">No AI-filtered videos in this period.</div>
+        </div>
+      </section>
+
+    </div>
+  </div>
 
   <script src="popup.js"></script>
 </body>

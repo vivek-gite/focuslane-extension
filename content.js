@@ -29,7 +29,7 @@ const MODE_PRESETS = {
     hideLiveChat: true,
     hideNotifications: true,
     forceAutoplayOff: true,
-    endGuard: true,
+    endGuard: false,
     visualMode: "dim",
     intentGate: false
   },
@@ -46,9 +46,9 @@ const MODE_PRESETS = {
     hideLiveChat: true,
     hideNotifications: true,
     forceAutoplayOff: true,
-    endGuard: true,
+    endGuard: false,
     visualMode: "title-only",
-    intentGate: true
+    intentGate: false
   }
 };
 
@@ -95,6 +95,8 @@ const DEFAULT_RUNTIME_STATE = {
   learningSessionQueue: [],
   learningSessionCurrentId: ""
 };
+
+const AI_FILTER_MIN_WORDS = 1;
 
 const SHORTS_SELECTORS = [
   "ytd-reel-shelf-renderer",
@@ -180,6 +182,9 @@ let dislikeCountValue = null;
 let dislikeFetchInFlight = false;
 let dislikeCountLoaded = false;
 let dislikeCountRecorded = false;
+let dislikeLocalAdjustment = 0;
+let dislikeLastSelected = false;
+let dislikeSelectedInitialized = false;
 
 const hiddenReasons = new WeakMap();
 const countedReasons = new WeakMap();
@@ -196,6 +201,18 @@ function hashString(value) {
   return (hash >>> 0).toString(36);
 }
 
+function countWords(value) {
+  return String(value || "").trim().split(/\s+/).filter(Boolean).length;
+}
+
+function hasUsableAiFilterRule(value) {
+  return countWords(value) >= AI_FILTER_MIN_WORDS;
+}
+
+function isAiFilterActive(effective) {
+  return !effective.focusRelaxed && hasUsableAiFilterRule(effective.aiFilterRule);
+}
+
 function parseList(value) {
   return String(value || "")
     .split(/[\n,]/)
@@ -210,6 +227,18 @@ function textIncludesAny(text, terms) {
 
 function sendStats(delta) {
   browser.runtime.sendMessage({ type: "INCREMENT_STATS", delta }).catch(() => {});
+}
+
+function rememberAiFilteredVideos(videos, filterRule) {
+  const payload = (Array.isArray(videos) ? videos : [])
+    .filter((video) => video?.id && video?.title)
+    .map((video) => ({ id: video.id, title: video.title }));
+  if (!payload.length) return;
+  browser.runtime.sendMessage({
+    type: "RECORD_AI_FILTERED_VIDEOS",
+    videos: payload,
+    filterRule
+  }).catch(() => {});
 }
 
 function recordCount(statKey, count) {
@@ -1048,17 +1077,18 @@ function getAiCacheKey(videoId, filterRule) {
 function applyAiFilter(effective) {
   const rule = (effective.aiFilterRule || "").trim();
   const ruleHash = hashString(rule);
+  const active = isAiFilterActive(effective);
   if (lastAiRuleHash && lastAiRuleHash !== ruleHash) {
     classifiedVideos.clear();
   }
   lastAiRuleHash = ruleHash;
 
   const signature = JSON.stringify({
-    enabled: Boolean(effective.filterEnabled),
+    active,
     ruleHash
   });
 
-  if (!effective.filterEnabled || !rule) {
+  if (!active) {
     if (lastAiFilterSignature) clearReason("ai-filter");
     lastAiFilterSignature = "";
     return;
@@ -1074,6 +1104,7 @@ function applyAiFilter(effective) {
   lastAiFilterScanAt = now;
 
   const unclassified = [];
+  const cachedFilteredVideos = [];
   let cachedHidden = 0;
 
   document.querySelectorAll(VIDEO_RENDERERS.join(",")).forEach((el) => {
@@ -1085,14 +1116,20 @@ function applyAiFilter(effective) {
 
     const cacheKey = getAiCacheKey(id, rule);
     if (classifiedVideos.has(cacheKey)) {
-      if (classifiedVideos.get(cacheKey) === false && setHidden(el, "ai-filter", true)) cachedHidden++;
+      if (classifiedVideos.get(cacheKey) === false && setHidden(el, "ai-filter", true)) {
+        cachedHidden++;
+        cachedFilteredVideos.push({ id, title });
+      }
       return;
     }
 
     unclassified.push({ id, title, element: el });
   });
 
-  if (cachedHidden > 0) recordCount("aiFiltered", cachedHidden);
+  if (cachedHidden > 0) {
+    recordCount("aiFiltered", cachedHidden);
+    rememberAiFilteredVideos(cachedFilteredVideos, rule);
+  }
   if (!unclassified.length) return;
 
   if (aiDebounceTimer) clearTimeout(aiDebounceTimer);
@@ -1114,14 +1151,19 @@ async function classifyBatch(videos, filterRule) {
 
         if (!response || !response.results) continue;
         let count = 0;
+        const filteredVideos = [];
         for (const item of batch) {
           const relevant = response.results[item.id] === true;
           classifiedVideos.set(getAiCacheKey(item.id, filterRule), relevant);
           if (!relevant && item.element.isConnected && setHidden(item.element, "ai-filter", true)) {
             count++;
+            filteredVideos.push({ id: item.id, title: item.title });
           }
         }
-        if (count > 0) recordCount("aiFiltered", count);
+        if (count > 0) {
+          recordCount("aiFiltered", count);
+          rememberAiFilteredVideos(filteredVideos, filterRule);
+        }
       } catch (_err) {
         return;
       }
@@ -1634,10 +1676,83 @@ function getDislikeButton() {
   return null;
 }
 
+function getLikeButton() {
+  const selectors = [
+    "like-button-view-model button",
+    "segmented-like-dislike-button-view-model like-button-view-model button",
+    "ytd-watch-metadata like-button-view-model button",
+    "ytd-watch-metadata segmented-like-button-view-model button",
+    "segmented-like-button-view-model button",
+    "#segmented-like-button button",
+    "button[aria-label^='Like' i]",
+    "button[aria-label='Like this video' i]",
+    "button[title='Like' i]"
+  ];
+
+  for (const selector of selectors) {
+    const button = document.querySelector(selector);
+    if (button instanceof HTMLElement && button.offsetParent !== null) return button;
+  }
+  return null;
+}
+
+function isDislikeButtonSelected(button) {
+  const ariaPressed = button?.getAttribute?.("aria-pressed");
+  if (ariaPressed === "true") return true;
+  if (ariaPressed === "false") return false;
+
+  const label = `${button?.getAttribute?.("aria-label") || ""} ${button?.getAttribute?.("title") || ""}`.toLowerCase();
+  return label.includes("remove dislike") || label.includes("disliked");
+}
+
+function getAdjustedDislikeCount() {
+  if (dislikeCountValue === null) return null;
+  return Math.max(0, dislikeCountValue + dislikeLocalAdjustment);
+}
+
+function syncDislikeSelectedState(button) {
+  const selected = isDislikeButtonSelected(button);
+  if (!dislikeSelectedInitialized) {
+    dislikeLastSelected = selected;
+    dislikeSelectedInitialized = true;
+  }
+}
+
+function setLocalDislikeSelected(selected, wasSelected = dislikeSelectedInitialized ? dislikeLastSelected : false) {
+  if (selected === dislikeLastSelected && dislikeSelectedInitialized) return;
+  dislikeSelectedInitialized = true;
+  dislikeLastSelected = selected;
+  dislikeLocalAdjustment += selected ? 1 : (wasSelected ? -1 : 0);
+  renderDislikeCount();
+}
+
+function bindDislikeButtonClick(button) {
+  if (button.dataset.focuslaneDislikeClickBound === "true") return;
+  button.dataset.focuslaneDislikeClickBound = "true";
+  button.addEventListener("click", () => {
+    const wasSelected = dislikeSelectedInitialized ? dislikeLastSelected : isDislikeButtonSelected(button);
+    setLocalDislikeSelected(!wasSelected, wasSelected);
+  });
+}
+
+function bindLikeButtonClick() {
+  const button = getLikeButton();
+  if (!button || button.dataset.focuslaneLikeClickBound === "true") return;
+  button.dataset.focuslaneLikeClickBound = "true";
+  button.addEventListener("click", () => {
+    const wasSelected = dislikeSelectedInitialized ? dislikeLastSelected : isDislikeButtonSelected(getDislikeButton());
+    if (!wasSelected) return;
+    setLocalDislikeSelected(false, wasSelected);
+  });
+}
+
 function getDislikeCountTarget(button) {
   // Hide the icon inside the button
   const icon = button.querySelector("yt-icon");
   if (icon) icon.classList.add("focuslane-dislike-icon-hidden");
+  button.classList.add("focuslane-dislike-button-with-count");
+  bindDislikeButtonClick(button);
+  syncDislikeSelectedState(button);
 
   let countEl = document.getElementById("focuslane-dislike-count");
   if (countEl && countEl.parentElement === button) return countEl;
@@ -1660,11 +1775,12 @@ function renderDislikeCount() {
 
   ensureDislikeCountStyles();
   const countEl = getDislikeCountTarget(button);
+  bindLikeButtonClick();
 
   countEl.classList.toggle("is-loading", dislikeFetchInFlight && !dislikeCountLoaded);
   countEl.classList.toggle("is-unavailable", dislikeCountLoaded && dislikeCountValue === null);
   countEl.textContent = dislikeCountLoaded ?
-    (dislikeCountValue === null ? "-" : formatDislikeCount(dislikeCountValue)) :
+    (dislikeCountValue === null ? "-" : formatDislikeCount(getAdjustedDislikeCount())) :
     "...";
 
   if (dislikeCountLoaded && dislikeCountValue !== null && !dislikeCountRecorded) {
@@ -2589,6 +2705,9 @@ function clearDislikeCountState() {
   dislikeFetchInFlight = false;
   dislikeCountLoaded = false;
   dislikeCountRecorded = false;
+  dislikeLocalAdjustment = 0;
+  dislikeLastSelected = false;
+  dislikeSelectedInitialized = false;
   removeDislikeCount();
 }
 
@@ -2610,6 +2729,9 @@ function setupDislikeCount(effective) {
     dislikeFetchInFlight = false;
     dislikeCountLoaded = false;
     dislikeCountRecorded = false;
+    dislikeLocalAdjustment = 0;
+    dislikeLastSelected = false;
+    dislikeSelectedInitialized = false;
     fetchDislikeCount(currentId);
   } else if (!dislikeCountLoaded && !dislikeFetchInFlight) {
     fetchDislikeCount(currentId);
@@ -2934,7 +3056,7 @@ function trackFocusMinute() {
     effective.hideWatchSidebar ||
     effective.forceAutoplayOff ||
     effective.dislikeCountEnabled ||
-    effective.filterEnabled ||
+    isAiFilterActive(effective) ||
     effective.sponsorBlockEnabled;
 
   if (advancedActive && !effective.focusRelaxed) {

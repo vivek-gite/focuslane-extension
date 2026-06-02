@@ -5,9 +5,12 @@ const CACHE_PREFIX = "vc2_";
 const LEGACY_CACHE_PREFIX = "vc_";
 const SPONSOR_CACHE_PREFIX = "sb_";
 const DISLIKE_CACHE_PREFIX = "ryd_";
+const AI_FILTERED_VIDEOS_KEY = "aiFilteredVideos";
+const AI_FILTERED_VIDEOS_LIMIT = 100;
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 const SPONSOR_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
 const DISLIKE_CACHE_EXPIRY_MS = 6 * 60 * 60 * 1000;
+const AI_FILTER_MIN_WORDS = 1;
 
 const MODE_PRESETS = {
   minimal: {
@@ -40,7 +43,7 @@ const MODE_PRESETS = {
     hideLiveChat: true,
     hideNotifications: true,
     forceAutoplayOff: true,
-    endGuard: true,
+    endGuard: false,
     visualMode: "dim",
     intentGate: false
   },
@@ -57,9 +60,9 @@ const MODE_PRESETS = {
     hideLiveChat: true,
     hideNotifications: true,
     forceAutoplayOff: true,
-    endGuard: true,
+    endGuard: false,
     visualMode: "title-only",
-    intentGate: true
+    intentGate: false
   }
 };
 
@@ -199,6 +202,14 @@ function hashString(value) {
   return (hash >>> 0).toString(36);
 }
 
+function countWords(value) {
+  return String(value || "").trim().split(/\s+/).filter(Boolean).length;
+}
+
+function hasUsableAiFilterRule(value) {
+  return countWords(value) >= AI_FILTER_MIN_WORDS;
+}
+
 function cacheKey(videoId, filterRule) {
   return `${CACHE_PREFIX}${hashString(filterRule)}_${videoId}`;
 }
@@ -252,7 +263,7 @@ async function classifyWithBackend(titles, filterRule) {
 async function handleClassifyVideos(message) {
   const { titles, filterRule } = message;
 
-  if (!titles || !titles.length || !filterRule) {
+  if (!titles || !titles.length || !hasUsableAiFilterRule(filterRule)) {
     return { results: {}, error: null };
   }
 
@@ -402,11 +413,50 @@ async function incrementStats(delta) {
   return current;
 }
 
+function normalizeFilteredVideo(item, timestamp) {
+  const id = String(item?.id || "").trim();
+  const title = String(item?.title || "").trim();
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(id) || !title) return null;
+  return {
+    id,
+    title,
+    url: `https://www.youtube.com/watch?v=${id}`,
+    filterRule: String(item?.filterRule || "").trim(),
+    timestamp
+  };
+}
+
+async function recordAiFilteredVideos(videos, filterRule) {
+  const timestamp = Date.now();
+  const nextItems = (Array.isArray(videos) ? videos : [])
+    .map((video) => normalizeFilteredVideo(Object.assign({}, video, { filterRule }), timestamp))
+    .filter(Boolean);
+
+  if (!nextItems.length) return { success: true, count: 0 };
+
+  const state = await browser.storage.local.get({ [AI_FILTERED_VIDEOS_KEY]: [] });
+  const previous = Array.isArray(state[AI_FILTERED_VIDEOS_KEY]) ? state[AI_FILTERED_VIDEOS_KEY] : [];
+  const seen = new Set();
+  const merged = [];
+
+  for (const item of [...nextItems, ...previous]) {
+    const key = `${item.id}:${item.filterRule || ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(item);
+    if (merged.length >= AI_FILTERED_VIDEOS_LIMIT) break;
+  }
+
+  await browser.storage.local.set({ [AI_FILTERED_VIDEOS_KEY]: merged });
+  return { success: true, count: nextItems.length };
+}
+
 async function getStats() {
   const allStorage = await browser.storage.local.get(null);
   const statsKeys = Object.keys(allStorage).filter((key) => key.startsWith("stats_"));
   const today = getTodayKey();
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const filteredVideos = Array.isArray(allStorage[AI_FILTERED_VIDEOS_KEY]) ? allStorage[AI_FILTERED_VIDEOS_KEY] : [];
 
   const todayStats = Object.assign({}, STATS_DEFAULT);
   const weekStats = Object.assign({}, STATS_DEFAULT);
@@ -423,7 +473,20 @@ async function getStats() {
     }
   }
 
-  return { today: todayStats, week: weekStats, allTime: allTimeStats };
+  const videosByPeriod = {
+    today: [],
+    week: [],
+    allTime: []
+  };
+
+  filteredVideos.forEach((video) => {
+    const date = new Date(Number(video.timestamp) || 0).toISOString().slice(0, 10);
+    if (date === today) videosByPeriod.today.push(video);
+    if (date >= weekAgo) videosByPeriod.week.push(video);
+    videosByPeriod.allTime.push(video);
+  });
+
+  return { today: todayStats, week: weekStats, allTime: allTimeStats, filteredVideos: videosByPeriod };
 }
 
 async function closeSenderTab(sender) {
@@ -487,6 +550,13 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "INCREMENT_STATS") {
     incrementStats(message.delta)
       .then((result) => sendResponse({ success: true, stats: result }))
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === "RECORD_AI_FILTERED_VIDEOS") {
+    recordAiFilteredVideos(message.videos, message.filterRule)
+      .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ success: false, error: err.message }));
     return true;
   }
