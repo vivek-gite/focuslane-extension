@@ -14,6 +14,7 @@ const AI_USER_FEEDBACK_LIMIT = 100;
 const AI_FEEDBACK_EXAMPLE_LIMIT = 8;
 const AI_DESCRIPTION_LIMIT = 1200;
 const AI_TRANSCRIPT_LIMIT = 2200;
+const AI_METADATA_CACHE_VERSION = "t2";
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 const SPONSOR_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
 const DISLIKE_CACHE_EXPIRY_MS = 6 * 60 * 60 * 1000;
@@ -433,6 +434,11 @@ function decodeHtmlEntities(value) {
     .replace(/&#39;/g, "'");
 }
 
+function readXmlAttribute(tag, name) {
+  const match = String(tag || "").match(new RegExp(`${name}="([^"]*)"`, "i"));
+  return match ? decodeHtmlEntities(match[1]) : "";
+}
+
 function transcriptFromJson3(data) {
   const parts = [];
   const events = Array.isArray(data?.events) ? data.events : [];
@@ -473,9 +479,65 @@ async function fetchTranscript(track) {
   }
 }
 
+function parseTimedTextTracks(xml) {
+  return Array.from(String(xml || "").matchAll(/<track\b[^>]*>/g))
+    .map((match) => {
+      const tag = match[0];
+      return {
+        lang: readXmlAttribute(tag, "lang_code"),
+        name: readXmlAttribute(tag, "name"),
+        kind: readXmlAttribute(tag, "kind")
+      };
+    })
+    .filter((track) => track.lang);
+}
+
+function selectTimedTextTrack(tracks) {
+  if (!Array.isArray(tracks) || !tracks.length) return null;
+  return tracks.find((track) => track.lang.toLowerCase().startsWith("en") && track.kind !== "asr") ||
+    tracks.find((track) => track.lang.toLowerCase().startsWith("en")) ||
+    tracks.find((track) => track.kind !== "asr") ||
+    tracks[0];
+}
+
+async function fetchTimedTextTranscript(videoId) {
+  try {
+    const listUrl = new URL("https://video.google.com/timedtext");
+    listUrl.searchParams.set("type", "list");
+    listUrl.searchParams.set("v", videoId);
+
+    const listResponse = await fetch(listUrl.toString(), { headers: { Accept: "text/xml, text/plain" } });
+    if (!listResponse.ok) return "";
+
+    const track = selectTimedTextTrack(parseTimedTextTracks(await listResponse.text()));
+    if (!track) return "";
+
+    const transcriptUrl = new URL("https://video.google.com/timedtext");
+    transcriptUrl.searchParams.set("v", videoId);
+    transcriptUrl.searchParams.set("lang", track.lang);
+    transcriptUrl.searchParams.set("fmt", "json3");
+    if (track.name) transcriptUrl.searchParams.set("name", track.name);
+    if (track.kind) transcriptUrl.searchParams.set("kind", track.kind);
+
+    const transcriptResponse = await fetch(transcriptUrl.toString(), {
+      headers: { Accept: "application/json, text/xml, text/plain" }
+    });
+    if (!transcriptResponse.ok) return "";
+
+    const text = await transcriptResponse.text();
+    try {
+      return transcriptFromJson3(JSON.parse(text));
+    } catch (_err) {
+      return transcriptFromXml(text);
+    }
+  } catch (_err) {
+    return "";
+  }
+}
+
 async function fetchYouTubeVideoMetadata(videoId) {
   if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId || "")) return null;
-  const key = `${METADATA_CACHE_PREFIX}${videoId}`;
+  const key = `${METADATA_CACHE_PREFIX}${AI_METADATA_CACHE_VERSION}_${videoId}`;
   const cached = await browser.storage.local.get({ [key]: null });
   const entry = cached[key];
   const now = Date.now();
@@ -494,7 +556,7 @@ async function fetchYouTubeVideoMetadata(videoId) {
     if (!playerResponse) return null;
 
     const track = selectCaptionTrack(playerResponse);
-    const transcript = track ? await fetchTranscript(track) : "";
+    const transcript = (track ? await fetchTranscript(track) : "") || await fetchTimedTextTranscript(videoId);
     const metadata = {
       channel: truncateAiMetadata(playerResponse.videoDetails?.author, 160),
       description: extractPlayerDescription(playerResponse),
