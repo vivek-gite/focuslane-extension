@@ -1,0 +1,52 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>focuslane</title>
+  <desc>focuslane logo mark with a pale mint background in light mode.</desc>
+  <style>
+    .bg { fill: #EEF7F0; }
+    .mark { fill: #000000; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #1E2B22; }
+      .mark { fill: #F5F5F0; }
+    }
+  </style>
+  <rect class="bg" width="1024" height="1024"/>
+  <g class="mark" transform="translate(224 178) scale(1.16)">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="
+      M148 122
+      H438
+      V204
+      H264
+      V257
+      H438
+      V339
+      H264
+      V430
+      H148
+      V369
+      H194
+      C222 369 244 347 244 319
+      V295
+      H148
+      V214
+      H194
+      C222 214 244 191 244 163
+      V122
+      H148
+      Z
+
+      M148 122
+      C148 168 111 204 66 204
+      H0
+      V122
+      H148
+      Z
+
+      M0 339
+      H66
+      C111 339 148 376 148 421
+      V430
+      H0
+      V339
+      Z"/>
+  </g>
+</svg>
