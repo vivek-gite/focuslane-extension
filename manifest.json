@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "focuslane",
-  "version": "2.2.3",
+  "version": "2.2.4",
   "description": "Make YouTube calmer with Shorts blocking, focus modes, filters, schedules, and distraction controls.",
   "permissions": [
     "storage",
@@ -28,15 +28,33 @@
     "default_popup": "popup.html",
     "default_title": "focuslane",
     "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
+      "16": "icons/icon-toolbar-on-light.svg",
+      "32": "icons/icon-toolbar-on-light.svg",
+      "48": "icons/icon-toolbar-on-light.svg",
+      "64": "icons/icon-toolbar-on-light.svg"
+    },
+    "theme_icons": [
+      {
+        "dark": "icons/icon-toolbar-on-light.svg",
+        "light": "icons/icon-toolbar-on-dark.svg",
+        "size": 16
+      },
+      {
+        "dark": "icons/icon-toolbar-on-light.svg",
+        "light": "icons/icon-toolbar-on-dark.svg",
+        "size": 32
+      },
+      {
+        "dark": "icons/icon-toolbar-on-light.svg",
+        "light": "icons/icon-toolbar-on-dark.svg",
+        "size": 48
+      }
+    ]
   },
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg",
+    "128": "icons/icon.svg"
   },
   "browser_specific_settings": {
     "gecko": {
