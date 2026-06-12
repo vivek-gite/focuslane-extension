@@ -1,6 +1,9 @@
 {
   "summary": {
-    "en-US": "Make YouTube calmer with Shorts blocking, focus modes, filters, schedules, and distraction controls."
+    "en-US": "Make YouTube calm and intentional — block Shorts, hide the feed, filter videos, and stay on track. Includes SponsorBlock + Return YouTube Dislike. No data collected."
+  },
+  "description": {
+    "en-US": "Make YouTube calmer: block Shorts, clean distractions, filter videos, and stay on track without surrendering your data.\n\nfocuslane is a free Firefox extension for people who want YouTube to stay useful without turning into an endless feed.\n\nKey features:\n\n- Block YouTube Shorts links, shelves, cards, sidebar entries, and direct Shorts pages.\n- Use Minimal, Study, Strict, or Custom focus modes.\n- Hide distracting YouTube surfaces like recommendations, comments, home feed, watch sidebar, end screens, info cards, live chat, notifications, community posts, and autoplay.\n- Create natural-language AI video filter rules, such as \"Only show programming tutorials and tech reviews.\"\n- Build a Learning Stack so YouTube sessions stay focused on selected videos.\n- Use focus schedules, Pomodoro sessions, and temporary unlocks.\n- Optionally use SponsorBlock and Return YouTube Dislike support.\n- Track focus stats like Shorts blocked, recommendations hidden, focus minutes, and estimated time saved.\n\nPrivacy:\n\nfocuslane declares no data collection. Settings, stats, caches, overrides, and feedback corrections are stored locally or in Firefox extension storage. Optional external services are only used when their related features are enabled, such as AI filtering, SponsorBlock, or Return YouTube Dislike."
   },
   "categories": [
     "appearance",
