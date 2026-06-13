@@ -1214,6 +1214,7 @@ async function classifyBatch(videos, filterRule) {
   const batchSize = 15;
   try {
     for (let i = 0; i < videos.length; i += batchSize) {
+      if (i > 0) await new Promise((r) => setTimeout(r, 500));
       const batch = videos.slice(i, i + batchSize);
       try {
         const response = await extensionApi.runtime.sendMessage({

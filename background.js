@@ -6,6 +6,7 @@ const extensionApi =
 const SHORTS_REDIRECT_RULE_ID = 1;
 
 let blockingEnabled = true;
+let rateLimitBackoffUntil = 0;
 
 const WORKER_URL = "https://focuslane-api.onrender.com";
 const CACHE_PREFIX = "vc4_";
@@ -355,12 +356,19 @@ async function cacheResults(classifications, decisions, videos, filterRule, pref
 }
 
 async function classifyWithBackend(titles, filterRule, preferenceProfile) {
+  if (Date.now() < rateLimitBackoffUntil) return null;
+
   try {
     const response = await fetch(`${WORKER_URL}/api/classify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ titles, filterRule, preferenceProfile })
     });
+
+    if (response.status === 429) {
+      rateLimitBackoffUntil = Date.now() + 60000;
+      return null;
+    }
 
     if (!response.ok) return null;
 
