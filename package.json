@@ -3,9 +3,13 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "lint": "web-ext lint --source-dir . --ignore-files package.json package-lock.json amo-metadata.json DESIGN.md \".github/**\" \"artifacts/**\"",
-    "build": "web-ext build --source-dir . --artifacts-dir artifacts --overwrite-dest --ignore-files package.json package-lock.json amo-metadata.json DESIGN.md \".github/**\" \"artifacts/**\"",
-    "publish:amo": "web-ext sign --source-dir . --artifacts-dir artifacts --channel listed --amo-metadata amo-metadata.json --ignore-files package.json package-lock.json amo-metadata.json DESIGN.md \".github/**\" \"artifacts/**\""
+    "lint": "npm run lint:firefox",
+    "lint:firefox": "web-ext lint --source-dir . --ignore-files package.json package-lock.json amo-metadata.json DESIGN.md \"manifests/**\" \"scripts/**\" \"dist/**\" \".github/**\" \"artifacts/**\"",
+    "build": "npm run build:firefox",
+    "build:firefox": "web-ext build --source-dir . --artifacts-dir artifacts --overwrite-dest --ignore-files package.json package-lock.json amo-metadata.json DESIGN.md \"manifests/**\" \"scripts/**\" \"dist/**\" \".github/**\" \"artifacts/**\"",
+    "build:chrome": "node scripts/build-chrome.mjs",
+    "build:all": "npm run build:firefox && npm run build:chrome",
+    "publish:amo": "web-ext sign --source-dir . --artifacts-dir artifacts --channel listed --amo-metadata amo-metadata.json --ignore-files package.json package-lock.json amo-metadata.json DESIGN.md \"manifests/**\" \"scripts/**\" \"dist/**\" \".github/**\" \"artifacts/**\""
   },
   "devDependencies": {
     "web-ext": "^8.0.0"
