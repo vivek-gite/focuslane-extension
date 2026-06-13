@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "focuslane",
-  "version": "2.2.4",
+  "version": "2.3.0",
   "description": "Make YouTube calm and intentional - block Shorts, hide the feed, filter videos, and stay on track. Includes SponsorBlock + Return YouTube Dislike. No data collected.",
   "permissions": [
     "storage",
