@@ -7,7 +7,7 @@ const SHORTS_REDIRECT_RULE_ID = 1;
 
 let blockingEnabled = true;
 
-const WORKER_URL = "https://focuslane-api.kytehe.workers.dev";
+const WORKER_URL = "https://focuslane-api.onrender.com";
 const CACHE_PREFIX = "vc4_";
 const PREVIOUS_CACHE_PREFIX = "vc2_";
 const METADATA_CACHE_PREFIX = "vc3_";

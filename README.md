@@ -107,7 +107,7 @@ The extension declares no data collection in `manifest.json`:
 
 Some optional features call external services when enabled or used:
 
-- **AI filtering** sends video title, channel, visible description, the configured filter rule, and a small set of local feedback examples to `https://focuslane-api.kytehe.workers.dev/api/classify`.
+- **AI filtering** sends video title, channel, visible description, the configured filter rule, and a small set of local feedback examples to `https://focuslane-api.onrender.com/api/classify`.
 - **SponsorBlock** sends the current YouTube video ID to `https://sponsor.ajay.app`.
 - **Return YouTube Dislike** sends the current YouTube video ID to `https://returnyoutubedislikeapi.com`.
 
@@ -121,7 +121,7 @@ The Firefox extension requests:
 - `tabs`: close or redirect tabs when focus controls require it.
 - `webRequest` and `webRequestBlocking`: redirect direct YouTube Shorts requests when Shorts blocking is active.
 - `*://*.youtube.com/*`: apply focus controls on YouTube.
-- `https://*.workers.dev/*`: call the AI classification backend.
+- `https://focuslane-api.onrender.com/*`: call the AI classification backend.
 - `https://sponsor.ajay.app/*`: fetch SponsorBlock segments.
 - `https://returnyoutubedislikeapi.com/*`: fetch estimated dislike counts.
 
