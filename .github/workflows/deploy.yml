@@ -1,4 +1,4 @@
-name: Firefox Extension CI/CD
+name: Browser Extension CI/CD
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - published
 
 jobs:
-  firefox-extension:
+  browser-extension:
     name: Validate, package, and publish
     runs-on: ubuntu-latest
     permissions:
@@ -38,6 +38,16 @@ jobs:
         with:
           name: focuslane-firefox-unsigned
           path: artifacts/*.zip
+          if-no-files-found: error
+
+      - name: Build Chrome unpacked extension
+        run: npm run build:chrome
+
+      - name: Upload Chrome unpacked extension
+        uses: actions/upload-artifact@v7
+        with:
+          name: focuslane-chrome-unpacked
+          path: dist/chrome
           if-no-files-found: error
 
       - name: Verify release tag matches manifest version

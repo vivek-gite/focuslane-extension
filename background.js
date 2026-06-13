@@ -1,3 +1,10 @@
+const extensionApi =
+  globalThis.browser?.runtime?.id ? globalThis.browser :
+  globalThis.chrome?.runtime?.id ? globalThis.chrome :
+  null;
+
+const SHORTS_REDIRECT_RULE_ID = 1;
+
 let blockingEnabled = true;
 
 const WORKER_URL = "https://focuslane-api.kytehe.workers.dev";
@@ -154,9 +161,40 @@ function redirectShortsRequest(details) {
   return {};
 }
 
+function getShortsRedirectRule() {
+  return {
+    id: SHORTS_REDIRECT_RULE_ID,
+    priority: 1,
+    action: {
+      type: "redirect",
+      redirect: { url: "https://www.youtube.com/?focuslane=shorts-blocked" }
+    },
+    condition: {
+      urlFilter: "||youtube.com/shorts",
+      resourceTypes: ["main_frame"]
+    }
+  };
+}
+
+async function updateDeclarativeBlockingRule(enabled) {
+  if (!extensionApi?.declarativeNetRequest?.updateDynamicRules) return false;
+
+  try {
+    await extensionApi.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: [SHORTS_REDIRECT_RULE_ID],
+      addRules: enabled ? [getShortsRedirectRule()] : []
+    });
+    return true;
+  } catch (_err) {
+    return false;
+  }
+}
+
 function enableBlocking() {
-  browser.webRequest.onBeforeRequest.removeListener(redirectShortsRequest);
-  browser.webRequest.onBeforeRequest.addListener(
+  if (!extensionApi?.webRequest?.onBeforeRequest) return;
+
+  extensionApi.webRequest.onBeforeRequest.removeListener(redirectShortsRequest);
+  extensionApi.webRequest.onBeforeRequest.addListener(
     redirectShortsRequest,
     { urls: ["*://*.youtube.com/shorts*"], types: ["main_frame"] },
     ["blocking"]
@@ -164,11 +202,15 @@ function enableBlocking() {
 }
 
 function disableBlocking() {
-  browser.webRequest.onBeforeRequest.removeListener(redirectShortsRequest);
+  if (!extensionApi?.webRequest?.onBeforeRequest) return;
+
+  extensionApi.webRequest.onBeforeRequest.removeListener(redirectShortsRequest);
 }
 
 async function updateBlockingRule(enabled) {
   blockingEnabled = enabled;
+  if (await updateDeclarativeBlockingRule(enabled)) return;
+
   if (enabled) {
     enableBlocking();
   } else {
@@ -177,7 +219,7 @@ async function updateBlockingRule(enabled) {
 }
 
 async function ensureDefaultSettings() {
-  const current = await browser.storage.sync.get(null);
+  const current = await extensionApi.storage.sync.get(null);
   const updates = {};
 
   for (const [key, value] of Object.entries(DEFAULT_SYNC_SETTINGS)) {
@@ -191,7 +233,7 @@ async function ensureDefaultSettings() {
   if (current.settingsVersion !== 2) updates.settingsVersion = 2;
 
   if (Object.keys(updates).length > 0) {
-    await browser.storage.sync.set(updates);
+    await extensionApi.storage.sync.set(updates);
   }
 
   const merged = Object.assign({}, DEFAULT_SYNC_SETTINGS, current, updates);
@@ -200,7 +242,7 @@ async function ensureDefaultSettings() {
 }
 
 async function refreshBlockingFromStorage() {
-  const settings = await browser.storage.sync.get(DEFAULT_SYNC_SETTINGS);
+  const settings = await extensionApi.storage.sync.get(DEFAULT_SYNC_SETTINGS);
   await updateBlockingRule(shouldRedirectShorts(settings));
 }
 
@@ -276,7 +318,7 @@ function getPreferenceSignature(settings, feedbackVersion) {
 async function getCachedResults(videos, filterRule, preferenceSignature) {
   if (!videos.length) return { results: {}, decisions: {}, uncachedVideos: [] };
   const keys = videos.map((video) => cacheKey(video, filterRule, preferenceSignature));
-  const cached = await browser.storage.local.get(keys);
+  const cached = await extensionApi.storage.local.get(keys);
   const results = {};
   const decisions = {};
   const uncachedVideos = [];
@@ -309,7 +351,7 @@ async function cacheResults(classifications, decisions, videos, filterRule, pref
       };
     }
   }
-  await browser.storage.local.set(toStore);
+  await extensionApi.storage.local.set(toStore);
 }
 
 async function classifyWithBackend(titles, filterRule, preferenceProfile) {
@@ -415,7 +457,7 @@ function extractPlayerDescription(playerResponse) {
 async function fetchYouTubeVideoMetadata(videoId) {
   if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId || "")) return null;
   const key = `${METADATA_CACHE_PREFIX}${AI_METADATA_CACHE_VERSION}_${videoId}`;
-  const cached = await browser.storage.local.get({ [key]: null });
+  const cached = await extensionApi.storage.local.get({ [key]: null });
   const entry = cached[key];
   const now = Date.now();
   if (entry && now - Number(entry.timestamp || 0) < CACHE_EXPIRY_MS) {
@@ -436,7 +478,7 @@ async function fetchYouTubeVideoMetadata(videoId) {
       channel: truncateAiMetadata(playerResponse.videoDetails?.author, 160),
       description: extractPlayerDescription(playerResponse)
     };
-    await browser.storage.local.set({ [key]: { metadata, timestamp: now } });
+    await extensionApi.storage.local.set({ [key]: { metadata, timestamp: now } });
     return metadata;
   } catch (_err) {
     return null;
@@ -557,8 +599,8 @@ function selectFeedbackExamples(videos, filterRule, feedback) {
 
 async function getAiPreferenceState() {
   const [syncSettings, localState] = await Promise.all([
-    browser.storage.sync.get(DEFAULT_SYNC_SETTINGS),
-    browser.storage.local.get({ [AI_USER_FEEDBACK_KEY]: [], aiPreferenceVersion: 0 })
+    extensionApi.storage.sync.get(DEFAULT_SYNC_SETTINGS),
+    extensionApi.storage.local.get({ [AI_USER_FEEDBACK_KEY]: [], aiPreferenceVersion: 0 })
   ]);
   return {
     settings: Object.assign({}, DEFAULT_SYNC_SETTINGS, syncSettings || {}),
@@ -640,7 +682,7 @@ async function handleClassifyVideos(message) {
 }
 
 async function handleClearCache() {
-  const allStorage = await browser.storage.local.get(null);
+  const allStorage = await extensionApi.storage.local.get(null);
   const cacheKeys = Object.keys(allStorage).filter(
     (key) => key.startsWith(CACHE_PREFIX) ||
       key.startsWith(METADATA_CACHE_PREFIX) ||
@@ -649,7 +691,7 @@ async function handleClearCache() {
       key.startsWith(SPONSOR_CACHE_PREFIX) ||
       key.startsWith(DISLIKE_CACHE_PREFIX)
   );
-  if (cacheKeys.length > 0) await browser.storage.local.remove(cacheKeys);
+  if (cacheKeys.length > 0) await extensionApi.storage.local.remove(cacheKeys);
   return { success: true, count: cacheKeys.length };
 }
 
@@ -682,7 +724,7 @@ async function handleGetSponsorSegments(message) {
   if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) return { segments: [], error: "invalid_video_id" };
 
   const key = sponsorCacheKey(videoId);
-  const cached = await browser.storage.local.get({ [key]: null });
+  const cached = await extensionApi.storage.local.get({ [key]: null });
   const entry = cached[key];
   const now = Date.now();
   if (entry && now - Number(entry.timestamp || 0) < SPONSOR_CACHE_EXPIRY_MS) {
@@ -702,13 +744,13 @@ async function handleGetSponsorSegments(message) {
     });
 
     if (response.status === 404) {
-      await browser.storage.local.set({ [key]: { segments: [], timestamp: now } });
+      await extensionApi.storage.local.set({ [key]: { segments: [], timestamp: now } });
       return { segments: [], error: null };
     }
     if (!response.ok) return { segments: [], error: `http_${response.status}` };
 
     const segments = normalizeSponsorSegments(await response.json());
-    await browser.storage.local.set({ [key]: { segments, timestamp: now } });
+    await extensionApi.storage.local.set({ [key]: { segments, timestamp: now } });
     return { segments, error: null };
   } catch (_err) {
     return { segments: [], error: "api_error" };
@@ -726,7 +768,7 @@ async function handleGetDislikeCount(message) {
   }
 
   const key = dislikeCacheKey(videoId);
-  const cached = await browser.storage.local.get({ [key]: null });
+  const cached = await extensionApi.storage.local.get({ [key]: null });
   const entry = cached[key];
   const now = Date.now();
   if (entry && now - Number(entry.timestamp || 0) < DISLIKE_CACHE_EXPIRY_MS) {
@@ -740,7 +782,7 @@ async function handleGetDislikeCount(message) {
     });
 
     if (response.status === 404) {
-      await browser.storage.local.set({ [key]: { count: null, timestamp: now } });
+      await extensionApi.storage.local.set({ [key]: { count: null, timestamp: now } });
       return { count: null, error: null };
     }
     if (!response.ok) return { count: null, error: `http_${response.status}` };
@@ -748,7 +790,7 @@ async function handleGetDislikeCount(message) {
     const data = await response.json();
     const count = Number(data.dislikes);
     const normalized = Number.isFinite(count) && count >= 0 ? Math.round(count) : null;
-    await browser.storage.local.set({ [key]: { count: normalized, timestamp: now } });
+    await extensionApi.storage.local.set({ [key]: { count: normalized, timestamp: now } });
     return { count: normalized, error: null };
   } catch (_err) {
     return { count: null, error: "api_error" };
@@ -757,13 +799,13 @@ async function handleGetDislikeCount(message) {
 
 async function incrementStats(delta) {
   const storageKey = `stats_${getTodayKey()}`;
-  const result = await browser.storage.local.get({ [storageKey]: STATS_DEFAULT });
+  const result = await extensionApi.storage.local.get({ [storageKey]: STATS_DEFAULT });
   const current = Object.assign({}, STATS_DEFAULT, result[storageKey] || {});
   for (const [key, value] of Object.entries(delta || {})) {
     const amount = Number(value) || 0;
     current[key] = (Number(current[key]) || 0) + amount;
   }
-  await browser.storage.local.set({ [storageKey]: current });
+  await extensionApi.storage.local.set({ [storageKey]: current });
   return current;
 }
 
@@ -792,7 +834,7 @@ async function recordAiFilteredVideos(videos, filterRule) {
 
   if (!nextItems.length) return { success: true, count: 0 };
 
-  const state = await browser.storage.local.get({ [AI_FILTERED_VIDEOS_KEY]: [] });
+  const state = await extensionApi.storage.local.get({ [AI_FILTERED_VIDEOS_KEY]: [] });
   const previous = Array.isArray(state[AI_FILTERED_VIDEOS_KEY]) ? state[AI_FILTERED_VIDEOS_KEY] : [];
   const seen = new Set();
   const merged = [];
@@ -805,7 +847,7 @@ async function recordAiFilteredVideos(videos, filterRule) {
     if (merged.length >= AI_FILTERED_VIDEOS_LIMIT) break;
   }
 
-  await browser.storage.local.set({ [AI_FILTERED_VIDEOS_KEY]: merged });
+  await extensionApi.storage.local.set({ [AI_FILTERED_VIDEOS_KEY]: merged });
   return { success: true, count: nextItems.length };
 }
 
@@ -830,7 +872,7 @@ async function recordAiFeedback(item) {
   const nextItem = normalizeFeedbackItem(item, timestamp);
   if (!nextItem) return { success: false, error: "invalid_feedback" };
 
-  const state = await browser.storage.local.get({ [AI_USER_FEEDBACK_KEY]: [], aiPreferenceVersion: 0 });
+  const state = await extensionApi.storage.local.get({ [AI_USER_FEEDBACK_KEY]: [], aiPreferenceVersion: 0 });
   const previous = Array.isArray(state[AI_USER_FEEDBACK_KEY]) ? state[AI_USER_FEEDBACK_KEY] : [];
   const seen = new Set();
   const merged = [];
@@ -844,7 +886,7 @@ async function recordAiFeedback(item) {
   }
 
   const aiPreferenceVersion = (Number(state.aiPreferenceVersion) || 0) + 1;
-  await browser.storage.local.set({
+  await extensionApi.storage.local.set({
     [AI_USER_FEEDBACK_KEY]: merged,
     aiPreferenceVersion
   });
@@ -853,7 +895,7 @@ async function recordAiFeedback(item) {
 }
 
 async function getStats() {
-  const allStorage = await browser.storage.local.get(null);
+  const allStorage = await extensionApi.storage.local.get(null);
   const statsKeys = Object.keys(allStorage).filter((key) => key.startsWith("stats_"));
   const today = getTodayKey();
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -892,27 +934,27 @@ async function getStats() {
 
 async function closeSenderTab(sender) {
   if (sender?.tab?.id) {
-    await browser.tabs.remove(sender.tab.id);
+    await extensionApi.tabs.remove(sender.tab.id);
     return { success: true };
   }
   return { success: false, error: "No sender tab" };
 }
 
-browser.runtime.onInstalled.addListener(() => {
+extensionApi.runtime.onInstalled.addListener(() => {
   ensureDefaultSettings();
 });
 
-browser.runtime.onStartup.addListener(() => {
+extensionApi.runtime.onStartup.addListener(() => {
   ensureDefaultSettings();
 });
 
-browser.storage.onChanged.addListener((changes, area) => {
+extensionApi.storage.onChanged.addListener((changes, area) => {
   if (area === "sync" && Object.keys(changes).some((key) => key in DEFAULT_SYNC_SETTINGS)) {
     refreshBlockingFromStorage();
   }
 });
 
-browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+extensionApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SET_BLOCKING") {
     updateBlockingRule(message.enabled)
       .then(() => sendResponse({ success: true }))

@@ -1,3 +1,8 @@
+const extensionApi =
+  globalThis.browser?.runtime?.id ? globalThis.browser :
+  globalThis.chrome?.runtime?.id ? globalThis.chrome :
+  null;
+
 const MODE_PRESETS = {
   minimal: {
     shortsBlocked: true,
@@ -236,7 +241,7 @@ function normalizeAiMetadataText(value) {
 }
 
 function sendStats(delta) {
-  browser.runtime.sendMessage({ type: "INCREMENT_STATS", delta }).catch(() => {});
+  extensionApi.runtime.sendMessage({ type: "INCREMENT_STATS", delta }).catch(() => {});
 }
 
 function rememberAiFilteredVideos(videos, filterRule) {
@@ -251,7 +256,7 @@ function rememberAiFilteredVideos(videos, filterRule) {
       reason: video.reason || ""
     }));
   if (!payload.length) return;
-  browser.runtime.sendMessage({
+  extensionApi.runtime.sendMessage({
     type: "RECORD_AI_FILTERED_VIDEOS",
     videos: payload,
     filterRule
@@ -438,7 +443,7 @@ function normalizePomodoroState() {
   }
 
   if (changed) {
-    browser.storage.local.set({
+    extensionApi.storage.local.set({
       pomodoroPhase: runtimeState.pomodoroPhase,
       pomodoroStartedAt: runtimeState.pomodoroStartedAt
     });
@@ -960,7 +965,7 @@ function isLearningSessionComplete() {
 
 function persistLearningState(updates) {
   Object.assign(runtimeState, updates);
-  browser.storage.local.set(updates).catch(() => {});
+  extensionApi.storage.local.set(updates).catch(() => {});
 }
 
 function saveLearningQueue(queue, extra = {}) {
@@ -1211,7 +1216,7 @@ async function classifyBatch(videos, filterRule) {
     for (let i = 0; i < videos.length; i += batchSize) {
       const batch = videos.slice(i, i + batchSize);
       try {
-        const response = await browser.runtime.sendMessage({
+        const response = await extensionApi.runtime.sendMessage({
           type: "CLASSIFY_VIDEOS",
           titles: batch.map((video) => ({
             id: video.id,
@@ -2703,7 +2708,7 @@ async function fetchSponsorSegments(videoId) {
   if (!videoId || sponsorFetchInFlight) return;
   sponsorFetchInFlight = true;
   try {
-    const response = await browser.runtime.sendMessage({ type: "GET_SPONSOR_SEGMENTS", videoId });
+    const response = await extensionApi.runtime.sendMessage({ type: "GET_SPONSOR_SEGMENTS", videoId });
     if (sponsorVideoId !== videoId) return;
     sponsorSegments = Array.isArray(response?.segments) ? response.segments : [];
     sponsorSegmentsLoaded = true;
@@ -2822,7 +2827,7 @@ async function fetchDislikeCount(videoId) {
   dislikeFetchInFlight = true;
   renderDislikeCount();
   try {
-    const response = await browser.runtime.sendMessage({ type: "GET_DISLIKE_COUNT", videoId });
+    const response = await extensionApi.runtime.sendMessage({ type: "GET_DISLIKE_COUNT", videoId });
     if (dislikeVideoId !== videoId) return;
     dislikeCountValue = Number.isFinite(Number(response?.count)) ? Number(response.count) : null;
     dislikeCountLoaded = true;
@@ -2963,12 +2968,12 @@ function removePageNotice() {
 
 function setIntentSession(minutes) {
   runtimeState.intentUntil = Date.now() + minutes * 60 * 1000;
-  browser.storage.local.set({ intentUntil: runtimeState.intentUntil });
+  extensionApi.storage.local.set({ intentUntil: runtimeState.intentUntil });
 }
 
 function setTemporaryUnlock(minutes) {
   runtimeState.unlockUntil = Date.now() + minutes * 60 * 1000;
-  browser.storage.local.set({ unlockUntil: runtimeState.unlockUntil });
+  extensionApi.storage.local.set({ unlockUntil: runtimeState.unlockUntil });
   sendStats({ unlockCount: 1 });
   scheduleApply();
 }
@@ -3109,7 +3114,7 @@ function removeEndGuard() {
 }
 
 function closeTab() {
-  browser.runtime.sendMessage({ type: "CLOSE_TAB" }).catch(() => {});
+  extensionApi.runtime.sendMessage({ type: "CLOSE_TAB" }).catch(() => {});
 }
 
 function trackFocusMinute() {
@@ -3184,8 +3189,8 @@ function scheduleApply(delay = 350, force = false) {
 
 async function loadState() {
   const [syncState, localState] = await Promise.all([
-    browser.storage.sync.get(DEFAULT_SETTINGS),
-    browser.storage.local.get(DEFAULT_RUNTIME_STATE)
+    extensionApi.storage.sync.get(DEFAULT_SETTINGS),
+    extensionApi.storage.local.get(DEFAULT_RUNTIME_STATE)
   ]);
 
   if (typeof syncState.aiFilterRule === "undefined" && typeof syncState.keywords !== "undefined") {
@@ -3202,7 +3207,7 @@ function startObserver() {
   observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
 }
 
-browser.storage.onChanged.addListener((changes, area) => {
+extensionApi.storage.onChanged.addListener((changes, area) => {
   if (area === "sync") {
     for (const [key, change] of Object.entries(changes)) {
       if (key in DEFAULT_SETTINGS) settings[key] = change.newValue;

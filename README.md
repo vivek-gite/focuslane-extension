@@ -1,14 +1,16 @@
 # focuslane
 
-focuslane is a Firefox extension that makes YouTube calmer and more intentional. It blocks common distraction surfaces, supports focus modes, filters videos with natural-language AI rules, skips sponsor segments, restores estimated dislike counts, and tracks focus-related stats.
+focuslane is a browser extension that makes YouTube calmer and more intentional. It blocks common distraction surfaces, supports focus modes, filters videos with natural-language AI rules, skips sponsor segments, restores estimated dislike counts, and tracks focus-related stats.
 
-The extension is built as a Firefox Manifest V2 add-on with a background script, a YouTube content script, and a popup UI.
+The shared source supports Firefox and Chrome. Firefox uses the root Manifest V2 add-on package. Chrome is generated as a Manifest V3 build in `dist/chrome`.
 
 ## Install
 
 Install focuslane from Firefox Add-ons:
 
 https://addons.mozilla.org/en-US/firefox/addon/focuslane/
+
+For Chrome development, build the Chrome target and load `dist/chrome` as an unpacked extension from `chrome://extensions`.
 
 ## Features
 
@@ -92,7 +94,7 @@ The popup includes a Stats tab with period filters for:
 
 ## Privacy and External Services
 
-focuslane stores settings and runtime state in Firefox extension storage.
+focuslane stores settings and runtime state in extension storage.
 
 The extension declares no data collection in `manifest.json`:
 
@@ -113,7 +115,7 @@ These services are only needed for their corresponding features. Cache entries, 
 
 ## Permissions
 
-The extension requests:
+The Firefox extension requests:
 
 - `storage`: save settings, caches, stats, and runtime state.
 - `tabs`: close or redirect tabs when focus controls require it.
@@ -123,19 +125,23 @@ The extension requests:
 - `https://sponsor.ajay.app/*`: fetch SponsorBlock segments.
 - `https://returnyoutubedislikeapi.com/*`: fetch estimated dislike counts.
 
+The Chrome build requests the same storage, tab, and host access, but uses `declarativeNetRequestWithHostAccess` instead of `webRequestBlocking` for Shorts redirects.
+
 ## Project Structure
 
 ```text
 .
-├── background.js        # Background script, settings defaults, caches, API calls, stats, request redirects
-├── content.js           # YouTube DOM controls, filtering, learning stack, sponsor/dislike UI, runtime behavior
-├── popup.html           # Extension popup markup and styles
-├── popup.js             # Popup state, events, settings, tabs, focus mode UI, stats rendering
-├── manifest.json        # Firefox extension manifest
-├── amo-metadata.json    # Add-ons Mozilla metadata for signing/publishing
-├── icons/               # Extension icons
-├── package.json         # web-ext scripts
-└── .github/workflows/   # CI/CD workflow for linting, packaging, and AMO publishing
+├── background.js              # Background script, settings defaults, caches, API calls, stats, request redirects
+├── content.js                 # YouTube DOM controls, filtering, learning stack, sponsor/dislike UI, runtime behavior
+├── popup.html                 # Extension popup markup and styles
+├── popup.js                   # Popup state, events, settings, tabs, focus mode UI, stats rendering
+├── manifest.json              # Firefox extension manifest
+├── manifests/chrome.json      # Chrome Manifest V3 template
+├── scripts/build-chrome.mjs   # Builds the unpacked Chrome extension
+├── amo-metadata.json          # Add-ons Mozilla metadata for signing/publishing
+├── icons/                     # Extension icons
+├── package.json               # Firefox and Chrome build scripts
+└── .github/workflows/         # CI/CD workflow for linting, packaging, and AMO publishing
 ```
 
 ## Requirements
@@ -143,8 +149,9 @@ The extension requests:
 - Node.js
 - npm
 - Firefox
+- Chrome
 
-The project uses [`web-ext`](https://extensionworkshop.com/documentation/develop/getting-started-with-web-ext/) for linting, packaging, and AMO submission.
+The project uses [`web-ext`](https://extensionworkshop.com/documentation/develop/getting-started-with-web-ext/) for Firefox linting, packaging, and AMO submission. The Chrome build script is dependency-free and writes an unpacked extension to `dist/chrome`.
 
 ## Setup
 
@@ -170,9 +177,19 @@ You can also use `web-ext` directly if you prefer a managed development run:
 npx web-ext run --source-dir .
 ```
 
+For manual testing in Chrome:
+
+1. Run `npm run build:chrome`.
+2. Open Chrome.
+3. Navigate to `chrome://extensions`.
+4. Enable **Developer mode**.
+5. Click **Load unpacked**.
+6. Select `dist/chrome`.
+7. Open YouTube and use the focuslane toolbar popup to configure settings.
+
 ## Validation
 
-Run extension linting:
+Run Firefox extension linting:
 
 ```bash
 npm run lint
@@ -180,15 +197,35 @@ npm run lint
 
 This validates the extension with `web-ext lint`.
 
+Build the Chrome target as a structural validation pass:
+
+```bash
+npm run build:chrome
+```
+
+The Chrome build validates that the generated manifest uses Manifest V3, `action`, a service worker, declarative net request permissions, and PNG manifest icons.
+
 ## Build
 
-Create an unsigned extension package in `artifacts/`:
+Create an unsigned Firefox extension package in `artifacts/`:
 
 ```bash
 npm run build
 ```
 
-The build script ignores development-only files such as `package.json`, `package-lock.json`, `.github/**`, and `artifacts/**`.
+Create an unpacked Chrome extension in `dist/chrome`:
+
+```bash
+npm run build:chrome
+```
+
+Build both targets:
+
+```bash
+npm run build:all
+```
+
+The Firefox build script ignores development-only and Chrome-only files such as `package.json`, `package-lock.json`, `manifests/**`, `scripts/**`, `.github/**`, `dist/**`, and `artifacts/**`.
 
 ## Publish to AMO
 
@@ -239,7 +276,7 @@ Release tags must use the format `vX.Y.Z` and match the manifest version. For ex
 
 ## Configuration Notes
 
-The canonical extension version is stored in `manifest.json`.
+The canonical Firefox extension version is stored in `manifest.json`. Keep `manifests/chrome.json` in sync before publishing a Chrome build.
 
 Some settings are intentionally disabled in the current popup/runtime path:
 
