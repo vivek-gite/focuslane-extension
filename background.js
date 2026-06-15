@@ -8,6 +8,7 @@ const SHORTS_REDIRECT_RULE_ID = 1;
 let blockingEnabled = true;
 let rateLimitBackoffUntil = 0;
 
+// const WORKER_URL = "http://localhost:3000"; // DEV: change back to "https://focuslane-api.onrender.com" before deploying
 const WORKER_URL = "https://focuslane-api.onrender.com";
 const CACHE_PREFIX = "vc4_";
 const PREVIOUS_CACHE_PREFIX = "vc2_";
